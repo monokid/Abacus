@@ -435,6 +435,11 @@ h1 {
   background: rgba(249, 246, 234, 0.72);
 }
 
+.new-entry-panel.has-error {
+  border-color: rgba(154, 63, 56, 0.52);
+  background: rgba(255, 247, 241, 0.88);
+}
+
 .budget-section[aria-label="Inkomsten"] .new-entry-panel {
   grid-template-columns: minmax(112px, 1fr) minmax(150px, 1.4fr) minmax(88px, 0.72fr) 34px;
 }
@@ -476,6 +481,12 @@ h1 {
 
 .amount-field input {
   text-align: right;
+}
+
+.field-error {
+  color: #9a3f38;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .add-entry {
@@ -529,6 +540,11 @@ h1 {
 
 .evening .new-entry-panel {
   background: rgba(255, 255, 255, 0.055);
+}
+
+.evening .new-entry-panel.has-error {
+  border-color: rgba(226, 132, 122, 0.58);
+  background: rgba(118, 51, 45, 0.2);
 }
 
 .evening .field input,

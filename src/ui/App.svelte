@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
     CalendarDays,
     CheckCircle2,
@@ -16,6 +17,7 @@
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
+  import { validateBook } from "../core/model";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
   import type { Book, BudgetMonth, Entry, Subcategory } from "../core/model";
@@ -38,8 +40,10 @@
     description: string;
     amountText: string;
     subcategoryId: string;
+    amountError: string;
   }
 
+  const storageKey = "abacus.fictionalProfile.v1";
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const initialBook = fictionalSampleBook();
 
@@ -47,6 +51,8 @@
   let activeMonth = $state(1);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
+  let storageReady = $state(false);
+  let saveStatus = $state("Voorbeeldgegevens");
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -69,6 +75,33 @@
     { name: "November", image: novemberImage },
     { name: "December", image: decemberImage },
   ];
+
+  onMount(() => {
+    const savedBook = localStorage.getItem(storageKey);
+    if (savedBook) {
+      try {
+        const parsedBook = JSON.parse(savedBook) as Book;
+        const issues = validateBook(parsedBook);
+        if (issues.length === 0) {
+          book = parsedBook;
+          drafts = createDrafts(parsedBook);
+          saveStatus = "Voorbeeldgegevens lokaal geladen";
+        } else {
+          saveStatus = "Lokaal voorbeeldbestand genegeerd";
+        }
+      } catch {
+        saveStatus = "Lokaal voorbeeldbestand kon niet gelezen worden";
+      }
+    }
+
+    storageReady = true;
+  });
+
+  $effect(() => {
+    if (!storageReady) return;
+    localStorage.setItem(storageKey, JSON.stringify(book));
+    saveStatus = "Voorbeeldgegevens lokaal bewaard";
+  });
 
   function monthName(monthNumber: number): string {
     return months[monthNumber - 1]?.name ?? `Maand ${monthNumber}`;
@@ -123,6 +156,11 @@
     const amountText = draft.amountText.trim();
     if (!party && !description && !amountText) return;
 
+    if (!isValidAmountText(amountText)) {
+      draft.amountError = "Controleer het bedrag.";
+      return;
+    }
+
     month.entries.push({
       id: `demo-${month.month}-${section}-${Date.now()}`,
       section,
@@ -140,15 +178,52 @@
       description: "",
       amountText: "",
       subcategoryId: draft.subcategoryId,
+      amountError: "",
     };
     activeMonth = month.month;
   }
 
-  function maybeCommitOnEnter(event: KeyboardEvent, month: BudgetMonth, section: Section): void {
+  function maybeHandleDraftKey(event: KeyboardEvent, month: BudgetMonth, section: Section): void {
     if (event.key === "Enter") {
       event.preventDefault();
       commitDraft(month, section);
     }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      resetDraft(month.month, section);
+    }
+  }
+
+  function maybeCommitOnPanelBlur(event: FocusEvent, month: BudgetMonth, section: Section): void {
+    const currentTarget = event.currentTarget;
+    const relatedTarget = event.relatedTarget;
+    if (currentTarget instanceof HTMLElement && relatedTarget instanceof Node && currentTarget.contains(relatedTarget)) return;
+    commitDraft(month, section);
+  }
+
+  function resetDraft(monthNumber: number, section: Section): void {
+    const key = draftKey(monthNumber, section);
+    const currentSubcategoryId = drafts[key]?.subcategoryId;
+    drafts[key] = {
+      ...emptyDraft(section),
+      subcategoryId: currentSubcategoryId || emptyDraft(section).subcategoryId,
+    };
+  }
+
+  function clearAmountError(draft: DraftEntry): void {
+    draft.amountError = "";
+  }
+
+  function isValidAmountText(amountText: string): boolean {
+    const text = amountText.trim().replace(/[\u20ac\s]/g, "");
+    if (!text) return true;
+
+    return (
+      /^[+-]?\d+([,.]\d{1,2})?$/.test(text) ||
+      /^[+-]?\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(text) ||
+      /^[+-]?\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(text)
+    );
   }
 
   function createDrafts(sourceBook: Book): Record<string, DraftEntry> {
@@ -170,6 +245,7 @@
       party: "",
       description: "",
       amountText: "",
+      amountError: "",
       subcategoryId:
         sourceBook.subcategories
           .filter((subcategory) => subcategory.section === section && !subcategory.hidden)
@@ -267,7 +343,7 @@
 
         <div class="grid-head">
           <span>Partij</span>
-          <span>Label</span>
+          <span>Omschrijving</span>
           <span>Bedrag</span>
           <span>Nota</span>
         </div>
@@ -310,10 +386,15 @@
 
             {#if true}
               {@const draft = draftFor(month.month, section)}
-              <div class="new-entry-panel">
+              <div
+                class:has-error={Boolean(draft.amountError)}
+                class="new-entry-panel"
+                data-testid={`draft-${month.month}-${section}`}
+                onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section)}
+              >
                 <label class="field category-field">
                   <span>Subcategorie</span>
-                  <select bind:value={draft.subcategoryId}>
+                  <select aria-label={`Subcategorie voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`} bind:value={draft.subcategoryId}>
                     {#each subcategoriesFor(section) as subcategory}
                       <option value={subcategory.id}>{subcategory.name}</option>
                     {/each}
@@ -324,30 +405,39 @@
                   <label class="field">
                     <span>Partij</span>
                     <input
+                      aria-label={`Partij voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
                       bind:value={draft.party}
                       placeholder="Bij wie?"
-                      onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
                     />
                   </label>
                 {/if}
 
                 <label class="field label-field">
-                  <span>Label</span>
+                  <span>Omschrijving</span>
                   <input
+                    aria-label={`Omschrijving voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
                     bind:value={draft.description}
                     placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
-                    onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
                   />
                 </label>
 
                 <label class="field amount-field">
                   <span>Bedrag</span>
                   <input
+                    aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}` : undefined}
+                    aria-invalid={Boolean(draft.amountError)}
+                    aria-label={`Bedrag voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
                     bind:value={draft.amountText}
                     inputmode="decimal"
                     placeholder="0,00"
-                    onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                    oninput={() => clearAmountError(draft)}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
                   />
+                  {#if draft.amountError}
+                    <small id={`amount-error-${month.month}-${section}`} class="field-error">{draft.amountError}</small>
+                  {/if}
                 </label>
 
                 <button class="add-entry" type="button" aria-label="Nieuwe regel toevoegen" onclick={() => commitDraft(month, section)}>
@@ -373,7 +463,7 @@
   </section>
 
   <footer class="status-bar">
-    <span>Voorbeeldgegevens</span>
+    <span>{saveStatus}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
     <span>Eindsaldo jaar {formatMoneyCents(totals.endCents)}</span>
   </footer>
