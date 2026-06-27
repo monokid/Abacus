@@ -96,6 +96,7 @@
     }
 
     storageReady = true;
+    window.setTimeout(() => selectMonth(activeMonth), 120);
   });
 
   $effect(() => {
@@ -117,6 +118,15 @@
 
     requestAnimationFrame(() => {
       scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
+      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
+    });
+  }
+
+  function activateMonthForInput(monthNumber: number): void {
+    if (activeMonth === monthNumber) return;
+    activeMonth = monthNumber;
+
+    requestAnimationFrame(() => {
       scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
     });
   }
@@ -415,6 +425,7 @@
                 class="new-entry-panel"
                 data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
                 onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
+                onfocusin={() => activateMonthForInput(month.month)}
               >
                 {#if section !== "inkomsten"}
                   <label class="field">

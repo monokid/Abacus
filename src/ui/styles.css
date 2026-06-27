@@ -41,10 +41,10 @@ main.evening {
 
 .app-header {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto minmax(210px, auto);
-  gap: 20px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  padding: 18px 24px 14px;
+  padding: 10px 24px 8px;
   border-bottom: 1px solid rgba(94, 68, 36, 0.2);
   background: rgba(253, 250, 241, 0.86);
 }
@@ -57,14 +57,14 @@ main.evening {
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   border: 2px solid #b9934d;
   border-radius: 50%;
   color: #31583d;
@@ -84,15 +84,15 @@ p {
 
 h1 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 2.15rem;
+  font-size: 1.72rem;
   line-height: 1;
   letter-spacing: 0;
 }
 
 .brand p {
-  margin-top: 4px;
+  margin-top: 2px;
   color: #6b604d;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
 }
 
 .evening .brand p {
@@ -105,6 +105,21 @@ h1 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.toolbar {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.header-actions {
+  justify-content: flex-end;
 }
 
 .tool,
@@ -121,9 +136,14 @@ h1 {
   border-radius: 7px;
   color: inherit;
   background: rgba(255, 253, 247, 0.72);
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
   cursor: pointer;
+}
+
+.tool,
+.primary-action {
+  font-size: 0.88rem;
 }
 
 .tool.active,
@@ -137,7 +157,7 @@ h1 {
 .month-tools button,
 .entry-row button,
 .new-entry-panel button {
-  width: 38px;
+  width: 34px;
   padding: 0;
 }
 
@@ -153,14 +173,14 @@ h1 {
 .year-strip {
   display: grid;
   grid-template-columns: auto repeat(3, minmax(160px, 1fr));
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 14px 24px;
+  padding: 8px 24px;
 }
 
 .year-pill,
 .year-stat {
-  min-height: 52px;
+  min-height: 40px;
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.72);
@@ -170,7 +190,7 @@ h1 {
   display: grid;
   place-items: center;
   min-width: 96px;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 
@@ -184,7 +204,7 @@ h1 {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 7px 12px;
 }
 
 .year-stat span {
@@ -212,9 +232,9 @@ h1 {
   top: 0;
   z-index: 6;
   display: flex;
-  gap: 10px;
+  gap: 9px;
   overflow-x: auto;
-  padding: 10px 24px 14px;
+  padding: 7px 24px 9px;
   background: rgba(247, 241, 228, 0.96);
   border-bottom: 1px solid rgba(105, 87, 53, 0.12);
   backdrop-filter: blur(10px);
@@ -228,7 +248,7 @@ h1 {
 }
 
 .month-tabs button {
-  flex: 0 0 146px;
+  flex: 0 0 138px;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas:
@@ -236,8 +256,8 @@ h1 {
     "num rest";
   align-items: center;
   gap: 2px 9px;
-  min-height: 58px;
-  padding: 8px 10px;
+  min-height: 48px;
+  padding: 6px 9px;
   border: 1px solid rgba(105, 87, 53, 0.2);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.72);
@@ -250,8 +270,8 @@ h1 {
   grid-area: num;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: #dcc38c;
   color: #3f321d;
@@ -260,13 +280,14 @@ h1 {
 
 .month-tabs button strong {
   grid-area: name;
+  font-size: 0.94rem;
 }
 
 .month-tabs button em {
   grid-area: rest;
   color: #38633f;
   font-style: normal;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
 }
 
 .month-tabs button.active {
@@ -463,7 +484,10 @@ h1 {
   min-height: 34px;
   padding: 3px 0;
   border-bottom: 1px solid rgba(112, 92, 58, 0.075);
-  font-size: 0.87rem;
+  color: #273320;
+  font-family: "Aptos", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.89rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .entry-row span,
@@ -471,9 +495,19 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.entry-row span:first-child {
+  color: #536047;
+  font-weight: 560;
+}
+
+.entry-row span:nth-child(2) {
+  color: #1f261d;
+}
+
 .entry-row strong {
   text-align: right;
-  font-weight: 700;
+  color: #0c2719;
+  font-weight: 760;
 }
 
 .entry-row button,
@@ -534,6 +568,7 @@ h1 {
   color: #253020;
   padding: 0 8px;
   outline: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .field input:focus,
@@ -649,7 +684,7 @@ h1 {
   color: #eadbb6;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 760px) {
   .app-header {
     grid-template-columns: 1fr;
   }

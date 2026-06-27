@@ -40,9 +40,16 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
   await captureScreenshot(page, "01-initial-board.png");
+  await expectCompactTopUi(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectNoMonthNumberLabels(page);
   await expectCategoryInputs(page);
+  await focusInactiveMonthInput(page, 2);
+  await expectActiveMonthVisible(page, 2);
+  await expectFocusedInputInMonth(page, 2);
+  await page.keyboard.press("Escape");
+  await navigateToMonth(page, 1);
+  await expectActiveMonthVisible(page, 1);
   await expectDraftPanelsContained(page, "eerste laadbeurt");
   await tabToIncomeAddButton(page);
   await expectFocusedElementContained(page, "tab naar plusknop");
@@ -69,10 +76,6 @@ try {
   await expectMonthTabsVisible(page, "na volgende maand op kaart");
   await navigateWithCardButton(page, 10, "Vorige maand", 9);
   await expectActiveMonthVisible(page, 9);
-  await page.reload({ waitUntil: "networkidle" });
-  await expectActiveMonthVisible(page, 1);
-  await expectMonthTabsVisible(page, "terug naar januari");
-
   await fillExpense(page, {
     party: "Testwinkel",
     description: "Test uitgave rooktest",
@@ -113,7 +116,7 @@ try {
 }
 
 async function fillExpense(page, { party, description, amount }) {
-  const draft = page.locator('[data-testid="draft-1-vaste_kosten-sub-vast-wonen"]');
+  const draft = page.locator('[data-testid="draft-9-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Partij"]').fill(party);
   await draft.locator('input[aria-label^="Omschrijving"]').fill(description);
   const amountInput = draft.locator('input[aria-label^="Bedrag"]');
@@ -121,13 +124,34 @@ async function fillExpense(page, { party, description, amount }) {
   await amountInput.press("Enter");
 }
 
+async function focusInactiveMonthInput(page, monthNumber) {
+  const input = page.locator(`[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"] input[aria-label^="Omschrijving"]`);
+  await input.click();
+  await input.fill("Klad invoer");
+}
+
+async function expectFocusedInputInMonth(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const activeElement = document.activeElement;
+    if (!(activeElement instanceof HTMLInputElement)) return "Actieve focus staat niet in een invoerveld.";
+
+    const card = activeElement.closest(".month-card");
+    if (!(card instanceof HTMLElement)) return "Invoerveld staat niet in een maandkaart.";
+    if (card.dataset.monthCard !== String(targetMonthNumber)) return "Invoerveld staat niet in de verwachte maandkaart.";
+
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Invoerfocuscontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
 async function clearInvalidExpenseDraft(page) {
-  const draft = page.locator('[data-testid="draft-1-vaste_kosten-sub-vast-wonen"]');
+  const draft = page.locator('[data-testid="draft-9-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Bedrag"]').press("Escape");
 }
 
 async function fillVariableAndCommitOnBlur(page) {
-  const draft = page.locator('[data-testid="draft-1-variabele_kosten-sub-var-gezondheid"]');
+  const draft = page.locator('[data-testid="draft-9-variabele_kosten-sub-var-gezondheid"]');
   await draft.locator('input[aria-label^="Partij"]').fill("Apotheek");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Klik weg rooktest");
   await draft.locator('input[aria-label^="Bedrag"]').fill("7,89");
@@ -135,7 +159,7 @@ async function fillVariableAndCommitOnBlur(page) {
 }
 
 async function fillIncomeAndCancel(page) {
-  const draft = page.locator('[data-testid="draft-1-inkomsten-sub-ink-pensioen"]');
+  const draft = page.locator('[data-testid="draft-9-inkomsten-sub-ink-pensioen"]');
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Wordt geannuleerd");
   await draft.locator('input[aria-label^="Omschrijving"]').press("Escape");
 }
@@ -265,6 +289,20 @@ async function navigateByClickingCard(page, monthNumber) {
 }
 
 async function expectActiveMonthVisible(page, monthNumber) {
+  await page.waitForFunction(
+    (targetMonthNumber) => {
+      const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
+      const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      if (!(activeTab instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return false;
+      if (!activeTab.classList.contains("active") || !activeCard.classList.contains("active-card")) return false;
+
+      const cardRect = activeCard.getBoundingClientRect();
+      return cardRect.left >= -1 && cardRect.right <= window.innerWidth + 1;
+    },
+    monthNumber,
+    { timeout: 5_000 },
+  );
+
   const issue = await page.evaluate((targetMonthNumber) => {
     const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
     const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
@@ -294,6 +332,29 @@ async function expectActiveCardProminent(page, monthNumber) {
   }, monthNumber);
 
   if (issue) throw new Error(`Actieve-kaartcontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectCompactTopUi(page) {
+  const issue = await page.evaluate(() => {
+    const firstCard = document.querySelector(".month-card");
+    const monthTabs = document.querySelector('[data-testid="month-tabs"]');
+    const primaryAction = document.querySelector(".primary-action");
+    if (!(firstCard instanceof HTMLElement) || !(monthTabs instanceof HTMLElement)) return "Maandkaart of maandbalk ontbreekt.";
+    if (!(primaryAction instanceof HTMLElement)) return "Overzichtknop ontbreekt.";
+
+    const firstCardTop = firstCard.getBoundingClientRect().top;
+    const tabsBottom = monthTabs.getBoundingClientRect().bottom;
+    if (tabsBottom > 260) return `Maandbalk staat te laag (${Math.round(tabsBottom)}px).`;
+    if (firstCardTop > 330) return `Maandkaarten beginnen te laag (${Math.round(firstCardTop)}px).`;
+    if (document.documentElement.scrollWidth > window.innerWidth + 1) return "Pagina heeft horizontale overloop in de topinterface.";
+
+    const actionRect = primaryAction.getBoundingClientRect();
+    if (actionRect.right > window.innerWidth + 1 || actionRect.left < -1) return "Overzichtknop is niet volledig zichtbaar.";
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Compactheidscontrole faalde: ${issue}`);
 }
 
 async function expectActiveCardNotClipped(page, monthNumber) {
