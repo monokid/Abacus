@@ -87,6 +87,13 @@ Subcategory requirements:
 - Deleting or hiding a subcategory should not delete rows.
 - Future Excel import must be able to map old spreadsheet labels/blocks into this model.
 
+Row field requirements:
+
+- Inkomsten, Vaste kosten, and Variabele kosten all support a `partij` field.
+- The income UI may use a softer label later if that reads better in Dutch, but the data
+  model should not treat income rows as party-less.
+- Recurring-rule setup must allow `partij` for income rules as well as expense rules.
+
 ## Money Model
 
 The core data model stores money as integer cents:
