@@ -110,7 +110,6 @@ h1 {
 .tool,
 .primary-action,
 .icon-button,
-.year-add,
 .month-tools button,
 .entry-row button,
 .new-entry-panel button {
@@ -128,8 +127,7 @@ h1 {
 }
 
 .tool.active,
-.primary-action,
-.year-add {
+.primary-action {
   border-color: rgba(48, 96, 60, 0.42);
   background: #355f40;
   color: #fff8e7;
@@ -154,7 +152,7 @@ h1 {
 
 .year-strip {
   display: grid;
-  grid-template-columns: auto auto repeat(3, minmax(160px, 1fr));
+  grid-template-columns: auto repeat(3, minmax(160px, 1fr));
   gap: 12px;
   align-items: center;
   padding: 14px 24px;
@@ -214,6 +212,13 @@ h1 {
   gap: 10px;
   overflow-x: auto;
   padding: 0 24px 14px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.month-tabs::-webkit-scrollbar,
+.board::-webkit-scrollbar {
+  display: none;
 }
 
 .month-tabs button {
@@ -279,6 +284,8 @@ h1 {
   overflow-x: auto;
   padding: 0 24px 26px;
   scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .month-card {

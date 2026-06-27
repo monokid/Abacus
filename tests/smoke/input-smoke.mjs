@@ -39,6 +39,11 @@ try {
   await tabToIncomeAddButton(page);
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
+  await expectScrollbarsHidden(page);
+  await navigateToMonth(page, 9);
+  await expectActiveMonthVisible(page, 9);
+  await navigateToMonth(page, 1);
+  await expectActiveMonthVisible(page, 1);
 
   await fillExpense(page, {
     party: "Testwinkel",
@@ -174,6 +179,58 @@ async function expectFocusedElementContained(page, label) {
   });
 
   if (issue) throw new Error(`Visuele focuscontrole faalde (${label}): ${issue}`);
+}
+
+async function navigateToMonth(page, monthNumber) {
+  const previousScrollLeft = await page.locator(".board").evaluate((board) => board.scrollLeft);
+  await page.locator(`[data-month-tab="${monthNumber}"]`).click();
+  await page.waitForFunction(
+    ({ monthNumber: targetMonthNumber, previousScrollLeft: scrollLeftBefore }) => {
+      const board = document.querySelector(".board");
+      const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      if (!(board instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return false;
+
+      const cardRect = activeCard.getBoundingClientRect();
+      const active = activeCard.classList.contains("active-card");
+      const visible = cardRect.left >= -1 && cardRect.right <= window.innerWidth + 1;
+      const moved = targetMonthNumber === 1 ? board.scrollLeft < scrollLeftBefore : board.scrollLeft > scrollLeftBefore;
+      return active && visible && moved;
+    },
+    { monthNumber, previousScrollLeft },
+    { timeout: 5_000 },
+  );
+}
+
+async function expectActiveMonthVisible(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
+    const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+    if (!(activeTab instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return "Maandknop of maandkaart ontbreekt.";
+    if (!activeTab.classList.contains("active")) return "Maandknop is niet actief.";
+    if (!activeCard.classList.contains("active-card")) return "Maandkaart is niet actief.";
+
+    const cardRect = activeCard.getBoundingClientRect();
+    if (cardRect.left < -1 || cardRect.right > window.innerWidth + 1) return "Actieve maandkaart is niet volledig zichtbaar.";
+
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Maandnavigatie faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectScrollbarsHidden(page) {
+  const issue = await page.evaluate(() => {
+    for (const selector of [".month-tabs", ".board"]) {
+      const element = document.querySelector(selector);
+      if (!(element instanceof HTMLElement)) return `${selector} ontbreekt.`;
+      const style = getComputedStyle(element);
+      if (style.scrollbarWidth !== "none") return `${selector} toont mogelijk een horizontale scrollbalk.`;
+    }
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Scrollbalkcontrole faalde: ${issue}`);
 }
 
 async function expectVisibleText(page, text) {

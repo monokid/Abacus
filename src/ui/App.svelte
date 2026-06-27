@@ -111,6 +111,23 @@
     return months[monthNumber - 1]?.image ?? januariImage;
   }
 
+  function selectMonth(monthNumber: number): void {
+    activeMonth = monthNumber;
+
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-month-card="${monthNumber}"]`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+      document.querySelector(`[data-month-tab="${monthNumber}"]`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    });
+  }
+
   function monthTotal(monthNumber: number) {
     return totals.months.find((month) => month.month === monthNumber)?.totals;
   }
@@ -289,7 +306,6 @@
 
   <section class="year-strip" aria-label="Jaaroverzicht">
     <div class="year-pill active">{selectedYear.year}</div>
-    <button type="button" class="year-add"><Plus size={17} />Nieuw jaar</button>
     <div class="year-stat">
       <span>Startsaldo</span>
       <strong>{formatMoneyCents(selectedYear.startBalanceCents)}</strong>
@@ -310,7 +326,8 @@
       <button
         type="button"
         class:active={activeMonth === month.month}
-        onclick={() => (activeMonth = month.month)}
+        data-month-tab={month.month}
+        onclick={() => selectMonth(month.month)}
       >
         <span>{month.month}</span>
         <strong>{monthName(month.month)}</strong>
@@ -322,7 +339,12 @@
   <section class="board" aria-label="Maandkaarten">
     {#each selectedYear.months as month}
       {@const total = monthTotal(month.month)}
-      <article class:active-card={activeMonth === month.month} class="month-card" aria-label={monthName(month.month)}>
+      <article
+        class:active-card={activeMonth === month.month}
+        class="month-card"
+        aria-label={monthName(month.month)}
+        data-month-card={month.month}
+      >
         <header class="month-header">
           <img src={monthImage(month.month)} alt="" />
           <div>
