@@ -1,0 +1,17 @@
+{
+  "name": "abacus",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A calm Dutch yearly household-budget desktop app.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.15",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
