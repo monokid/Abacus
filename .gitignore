@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+release/
+publish/
+
+# Desktop/package outputs
+*.exe
+*.msi
+*.AppImage
+*.dmg
+*.zip
+
+# Test and coverage outputs
+coverage/
+test-results/
+playwright-report/
+
+# Local app data and personal data
+gegevens/
+data/
+backups/
+exports/
+*.local.json
+*.personal.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
