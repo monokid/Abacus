@@ -15,7 +15,7 @@
     Sun,
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
-  import { formatMoneyCents, formatDecimalCents } from "../core/money";
+  import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
   import type { BudgetMonth, Entry, Subcategory } from "../core/model";
@@ -33,14 +33,25 @@
   import novemberImage from "../../assets/months/november.png";
   import decemberImage from "../../assets/months/december.png";
 
-  const book = fictionalSampleBook();
-  const selectedYear = book.years[0];
-
-  if (!selectedYear) {
-    throw new Error("Geen voorbeeldjaar gevonden.");
+  interface DraftEntry {
+    party: string;
+    description: string;
+    amountText: string;
+    subcategoryId: string;
   }
 
-  const totals = yearTotals(selectedYear);
+  let book = $state(fictionalSampleBook());
+  let activeMonth = $state(1);
+  let evening = $state(false);
+  let drafts = $state<Record<string, DraftEntry>>({});
+
+  const selectedYear = $derived.by(() => {
+    const year = book.years[0];
+    if (!year) throw new Error("Geen voorbeeldjaar gevonden.");
+    return year;
+  });
+
+  const totals = $derived(yearTotals(selectedYear));
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const months = [
     { name: "Januari", image: januariImage },
@@ -56,9 +67,6 @@
     { name: "November", image: novemberImage },
     { name: "December", image: decemberImage },
   ];
-
-  let activeMonth = $state(1);
-  let evening = $state(false);
 
   function monthName(monthNumber: number): string {
     return months[monthNumber - 1]?.name ?? `Maand ${monthNumber}`;
@@ -92,6 +100,59 @@
 
   function uncategorizedEntries(month: BudgetMonth, section: Section): Entry[] {
     return entriesFor(month, section, null);
+  }
+
+  function draftKey(monthNumber: number, section: Section): string {
+    return `${monthNumber}:${section}`;
+  }
+
+  function draftFor(monthNumber: number, section: Section): DraftEntry {
+    const key = draftKey(monthNumber, section);
+    drafts[key] ??= {
+      party: "",
+      description: "",
+      amountText: "",
+      subcategoryId: subcategoriesFor(section)[0]?.id ?? "",
+    };
+    return drafts[key];
+  }
+
+  function commitDraft(month: BudgetMonth, section: Section): void {
+    const key = draftKey(month.month, section);
+    const draft = drafts[key];
+    if (!draft) return;
+
+    const party = section === "inkomsten" ? "" : draft.party.trim();
+    const description = draft.description.trim();
+    const amountText = draft.amountText.trim();
+    if (!party && !description && !amountText) return;
+
+    month.entries.push({
+      id: `demo-${month.month}-${section}-${Date.now()}`,
+      section,
+      subcategoryId: draft.subcategoryId || null,
+      date: `${selectedYear.year}-${String(month.month).padStart(2, "0")}-01`,
+      party,
+      description: description || "Nieuwe regel",
+      amountCents: amountText ? parseMoneyToCents(amountText) : null,
+      comment: "",
+      createdAt: Date.now(),
+    });
+
+    drafts[key] = {
+      party: "",
+      description: "",
+      amountText: "",
+      subcategoryId: draft.subcategoryId,
+    };
+    activeMonth = month.month;
+  }
+
+  function maybeCommitOnEnter(event: KeyboardEvent, month: BudgetMonth, section: Section): void {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitDraft(month, section);
+    }
   }
 </script>
 
@@ -224,12 +285,53 @@
               </div>
             {/each}
 
-            <div class="new-row">
-              <span>{section === "inkomsten" ? "" : "Nieuwe partij"}</span>
-              <span>Nieuwe regel</span>
-              <span></span>
-              <button type="button" aria-label="Nieuwe regel"><Plus size={15} /></button>
-            </div>
+            {#if true}
+              {@const draft = draftFor(month.month, section)}
+              <div class="new-entry-panel">
+                <label class="field category-field">
+                  <span>Subcategorie</span>
+                  <select bind:value={draft.subcategoryId}>
+                    {#each subcategoriesFor(section) as subcategory}
+                      <option value={subcategory.id}>{subcategory.name}</option>
+                    {/each}
+                  </select>
+                </label>
+
+                {#if section !== "inkomsten"}
+                  <label class="field">
+                    <span>Partij</span>
+                    <input
+                      bind:value={draft.party}
+                      placeholder="Bij wie?"
+                      onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                    />
+                  </label>
+                {/if}
+
+                <label class="field label-field">
+                  <span>Label</span>
+                  <input
+                    bind:value={draft.description}
+                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
+                    onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                  />
+                </label>
+
+                <label class="field amount-field">
+                  <span>Bedrag</span>
+                  <input
+                    bind:value={draft.amountText}
+                    inputmode="decimal"
+                    placeholder="0,00"
+                    onkeydown={(event) => maybeCommitOnEnter(event, month, section)}
+                  />
+                </label>
+
+                <button class="add-entry" type="button" aria-label="Nieuwe regel toevoegen" onclick={() => commitDraft(month, section)}>
+                  <Plus size={16} />
+                </button>
+              </div>
+            {/if}
           </section>
         {/each}
 
