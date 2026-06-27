@@ -208,10 +208,16 @@ h1 {
 }
 
 .month-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding: 0 24px 14px;
+  padding: 10px 24px 14px;
+  background: rgba(247, 241, 228, 0.96);
+  border-bottom: 1px solid rgba(105, 87, 53, 0.12);
+  backdrop-filter: blur(10px);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -273,6 +279,11 @@ h1 {
   border-color: rgba(219, 190, 118, 0.22);
 }
 
+.evening .month-tabs {
+  background: rgba(30, 43, 35, 0.96);
+  border-color: rgba(219, 190, 118, 0.16);
+}
+
 .evening .month-tabs button em {
   color: #d6c386;
 }
@@ -318,6 +329,20 @@ h1 {
   align-items: center;
   padding: 13px 14px 10px;
   border-bottom: 1px solid rgba(115, 94, 61, 0.18);
+}
+
+.month-tools {
+  gap: 6px;
+}
+
+.month-tools button {
+  width: 34px;
+  min-height: 34px;
+}
+
+.month-tools button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .month-header img {

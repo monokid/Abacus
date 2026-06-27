@@ -42,8 +42,15 @@ try {
   await expectScrollbarsHidden(page);
   await navigateToMonth(page, 9);
   await expectActiveMonthVisible(page, 9);
+  await expectMonthTabsVisible(page, "na klik op maandknop");
+  await navigateWithCardButton(page, 9, "Volgende maand", 10);
+  await expectActiveMonthVisible(page, 10);
+  await expectMonthTabsVisible(page, "na volgende maand op kaart");
+  await navigateWithCardButton(page, 10, "Vorige maand", 9);
+  await expectActiveMonthVisible(page, 9);
   await navigateToMonth(page, 1);
   await expectActiveMonthVisible(page, 1);
+  await expectMonthTabsVisible(page, "terug naar januari");
 
   await fillExpense(page, {
     party: "Testwinkel",
@@ -199,6 +206,29 @@ async function navigateToMonth(page, monthNumber) {
     { monthNumber, previousScrollLeft },
     { timeout: 5_000 },
   );
+  await expectMonthTabsVisible(page, `maandknop ${monthNumber}`);
+}
+
+async function navigateWithCardButton(page, fromMonthNumber, buttonName, expectedMonthNumber) {
+  await page.locator(`[data-month-card="${fromMonthNumber}"] button[aria-label="${buttonName}"]`).click();
+  await page.waitForFunction(
+    (targetMonthNumber) => {
+      const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
+      const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      if (!(activeTab instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return false;
+
+      const cardRect = activeCard.getBoundingClientRect();
+      return (
+        activeTab.classList.contains("active") &&
+        activeCard.classList.contains("active-card") &&
+        cardRect.left >= -1 &&
+        cardRect.right <= window.innerWidth + 1
+      );
+    },
+    expectedMonthNumber,
+    { timeout: 5_000 },
+  );
+  await expectMonthTabsVisible(page, `${buttonName} vanaf maand ${fromMonthNumber}`);
 }
 
 async function expectActiveMonthVisible(page, monthNumber) {
@@ -216,6 +246,21 @@ async function expectActiveMonthVisible(page, monthNumber) {
   }, monthNumber);
 
   if (issue) throw new Error(`Maandnavigatie faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectMonthTabsVisible(page, label) {
+  const issue = await page.evaluate(() => {
+    const tabs = document.querySelector('[data-testid="month-tabs"]');
+    if (!(tabs instanceof HTMLElement)) return "Maandbalk ontbreekt.";
+
+    const rect = tabs.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight) return "Maandbalk is niet zichtbaar.";
+    if (rect.top < -1) return "Maandbalk is boven beeld geschoven.";
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Maandbalkcontrole faalde (${label}): ${issue}`);
 }
 
 async function expectScrollbarsHidden(page) {

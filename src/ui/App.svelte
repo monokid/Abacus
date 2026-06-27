@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import {
     CalendarDays,
+    ChevronLeft,
+    ChevronRight,
     CheckCircle2,
     Download,
     History,
@@ -115,16 +117,19 @@
     activeMonth = monthNumber;
 
     requestAnimationFrame(() => {
-      document.querySelector(`[data-month-card="${monthNumber}"]`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
-      document.querySelector(`[data-month-tab="${monthNumber}"]`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
+      scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
+      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
+    });
+  }
+
+  function scrollRailToItem(railSelector: string, itemSelector: string): void {
+    const rail = document.querySelector(railSelector);
+    const item = document.querySelector(itemSelector);
+    if (!(rail instanceof HTMLElement) || !(item instanceof HTMLElement)) return;
+
+    rail.scrollTo({
+      left: item.offsetLeft - (rail.clientWidth - item.clientWidth) / 2,
+      behavior: "smooth",
     });
   }
 
@@ -320,7 +325,7 @@
     </div>
   </section>
 
-  <section class="month-tabs" aria-label="Maanden">
+  <section class="month-tabs" aria-label="Maanden" data-testid="month-tabs">
     {#each selectedYear.months as month}
       {@const total = monthTotal(month.month)}
       <button
@@ -352,6 +357,12 @@
             <h2>{monthName(month.month)}</h2>
           </div>
           <div class="month-tools">
+            <button type="button" aria-label="Vorige maand" disabled={month.month === 1} onclick={() => selectMonth(month.month - 1)}>
+              <ChevronLeft size={18} />
+            </button>
+            <button type="button" aria-label="Volgende maand" disabled={month.month === 12} onclick={() => selectMonth(month.month + 1)}>
+              <ChevronRight size={18} />
+            </button>
             <button type="button" aria-label="Controle"><CheckCircle2 size={18} /></button>
             <button type="button" aria-label="Opmerkingen"><MessageCircle size={18} /></button>
             <button type="button" aria-label="Maand afsluiten"><Lock size={18} /></button>
