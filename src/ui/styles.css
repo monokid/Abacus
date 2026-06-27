@@ -274,6 +274,7 @@ h1 {
 
 .board {
   display: flex;
+  align-items: flex-start;
   gap: 16px;
   overflow-x: auto;
   padding: 0 24px 86px;
