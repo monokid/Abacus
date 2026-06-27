@@ -1,15 +1,19 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import http from "node:http";
 import { chromium } from "playwright-core";
 
 const port = 5174;
 const baseUrl = `http://127.0.0.1:${port}`;
 const storageKey = "abacus.fictionalProfile.v1";
+const screenshotDir = "test-results/smoke";
 
 let devServer = null;
 
 try {
+  await mkdir(screenshotDir, { recursive: true });
+
   if (!(await isServerReady())) {
     devServer = spawn(npmCommand(), ["run", "dev", "--", "--port", String(port), "--strictPort"], {
       cwd: process.cwd(),
@@ -35,20 +39,34 @@ try {
   await page.evaluate((key) => localStorage.removeItem(key), storageKey);
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
+  await captureScreenshot(page, "01-initial-board.png");
+  await expectMonthHeaderLayout(page, "eerste laadbeurt");
+  await expectNoMonthNumberLabels(page);
   await expectDraftPanelsContained(page, "eerste laadbeurt");
   await tabToIncomeAddButton(page);
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
   await expectScrollbarsHidden(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expectMonthTabsVisible(page, "na terug naar bovenzijde");
   await navigateToMonth(page, 9);
   await expectActiveMonthVisible(page, 9);
+  await expectActiveCardProminent(page, 9);
+  await expectMonthHeaderLayout(page, "september actief");
+  await captureScreenshot(page, "02-september-active.png");
   await expectMonthTabsVisible(page, "na klik op maandknop");
+  await navigateByClickingCard(page, 10);
+  await expectActiveMonthVisible(page, 10);
+  await expectActiveCardProminent(page, 10);
+  await captureScreenshot(page, "03-october-card-click.png");
+  await expectMonthHeaderLayout(page, "oktober via kaartklik");
+  await navigateToMonth(page, 9);
   await navigateWithCardButton(page, 9, "Volgende maand", 10);
   await expectActiveMonthVisible(page, 10);
   await expectMonthTabsVisible(page, "na volgende maand op kaart");
   await navigateWithCardButton(page, 10, "Vorige maand", 9);
   await expectActiveMonthVisible(page, 9);
-  await navigateToMonth(page, 1);
+  await page.reload({ waitUntil: "networkidle" });
   await expectActiveMonthVisible(page, 1);
   await expectMonthTabsVisible(page, "terug naar januari");
 
@@ -189,21 +207,18 @@ async function expectFocusedElementContained(page, label) {
 }
 
 async function navigateToMonth(page, monthNumber) {
-  const previousScrollLeft = await page.locator(".board").evaluate((board) => board.scrollLeft);
   await page.locator(`[data-month-tab="${monthNumber}"]`).click();
   await page.waitForFunction(
-    ({ monthNumber: targetMonthNumber, previousScrollLeft: scrollLeftBefore }) => {
-      const board = document.querySelector(".board");
+    (targetMonthNumber) => {
       const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
-      if (!(board instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return false;
+      if (!(activeCard instanceof HTMLElement)) return false;
 
       const cardRect = activeCard.getBoundingClientRect();
       const active = activeCard.classList.contains("active-card");
       const visible = cardRect.left >= -1 && cardRect.right <= window.innerWidth + 1;
-      const moved = targetMonthNumber === 1 ? board.scrollLeft < scrollLeftBefore : board.scrollLeft > scrollLeftBefore;
-      return active && visible && moved;
+      return active && visible;
     },
-    { monthNumber, previousScrollLeft },
+    monthNumber,
     { timeout: 5_000 },
   );
   await expectMonthTabsVisible(page, `maandknop ${monthNumber}`);
@@ -231,6 +246,21 @@ async function navigateWithCardButton(page, fromMonthNumber, buttonName, expecte
   await expectMonthTabsVisible(page, `${buttonName} vanaf maand ${fromMonthNumber}`);
 }
 
+async function navigateByClickingCard(page, monthNumber) {
+  await page.locator(`[data-month-card="${monthNumber}"] .month-title`).click();
+  await page.waitForFunction(
+    (targetMonthNumber) => {
+      const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
+      const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      if (!(activeTab instanceof HTMLElement) || !(activeCard instanceof HTMLElement)) return false;
+
+      return activeTab.classList.contains("active") && activeCard.classList.contains("active-card");
+    },
+    monthNumber,
+    { timeout: 5_000 },
+  );
+}
+
 async function expectActiveMonthVisible(page, monthNumber) {
   const issue = await page.evaluate((targetMonthNumber) => {
     const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
@@ -246,6 +276,88 @@ async function expectActiveMonthVisible(page, monthNumber) {
   }, monthNumber);
 
   if (issue) throw new Error(`Maandnavigatie faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectActiveCardProminent(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const card = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+    if (!(card instanceof HTMLElement)) return "Actieve maandkaart ontbreekt.";
+
+    const style = getComputedStyle(card);
+    if (style.transform === "none") return "Actieve maandkaart heeft geen subtiele lift.";
+    if (Number(style.zIndex || "0") < 1) return "Actieve maandkaart ligt niet zichtbaar boven buurkaarten.";
+
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Actieve-kaartcontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectMonthHeaderLayout(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    const visibleCards = Array.from(document.querySelectorAll(".month-card")).filter((card) => {
+      const rect = card.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+
+    return visibleCards.flatMap((card, index) => {
+      if (!(card instanceof HTMLElement)) return [];
+      const cardRect = card.getBoundingClientRect();
+      const header = card.querySelector(".month-header");
+      const image = card.querySelector(".month-header img");
+      const title = card.querySelector(".month-title");
+      const tools = card.querySelector(".month-tools");
+      if (!(header instanceof HTMLElement) || !(image instanceof HTMLElement) || !(title instanceof HTMLElement) || !(tools instanceof HTMLElement)) {
+        return [`Zichtbare maandkaart ${index + 1}: headeronderdelen ontbreken.`];
+      }
+
+      const headerRect = header.getBoundingClientRect();
+      const imageRect = image.getBoundingClientRect();
+      const titleRect = title.getBoundingClientRect();
+      const toolsRect = tools.getBoundingClientRect();
+      const cardIssues = [];
+
+      for (const [name, rect] of [
+        ["maandicoon", imageRect],
+        ["maandtitel", titleRect],
+        ["knoppenrij", toolsRect],
+      ]) {
+        if (rect.left < cardRect.left - tolerance || rect.right > cardRect.right + tolerance) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: ${name} valt buiten de kaart.`);
+        }
+        if (rect.top < headerRect.top - tolerance || rect.bottom > headerRect.bottom + tolerance) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: ${name} valt buiten de header.`);
+        }
+      }
+
+      if (rectsOverlap(imageRect, titleRect)) cardIssues.push(`Zichtbare maandkaart ${index + 1}: maandicoon en titel overlappen.`);
+      if (rectsOverlap(titleRect, toolsRect)) cardIssues.push(`Zichtbare maandkaart ${index + 1}: titel en knoppen overlappen.`);
+      if (rectsOverlap(imageRect, toolsRect)) cardIssues.push(`Zichtbare maandkaart ${index + 1}: maandicoon en knoppen overlappen.`);
+      if (tools.scrollWidth > tools.clientWidth + tolerance) {
+        cardIssues.push(`Zichtbare maandkaart ${index + 1}: knoppenrij is breder dan beschikbaar.`);
+      }
+
+      return cardIssues;
+    });
+
+    function rectsOverlap(left, right) {
+      return left.left < right.right - tolerance && left.right > right.left + tolerance && left.top < right.bottom - tolerance && left.bottom > right.top + tolerance;
+    }
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Visuele headercontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+}
+
+async function expectNoMonthNumberLabels(page) {
+  const issue = await page.evaluate(() => {
+    const offenders = Array.from(document.querySelectorAll(".month-header")).filter((header) => /Maand\s+\d+/i.test(header.textContent ?? ""));
+    return offenders.length > 0 ? "Maandnummerlabel staat nog in de kaartheader." : "";
+  });
+
+  if (issue) throw new Error(issue);
 }
 
 async function expectMonthTabsVisible(page, label) {
@@ -276,6 +388,13 @@ async function expectScrollbarsHidden(page) {
   });
 
   if (issue) throw new Error(`Scrollbalkcontrole faalde: ${issue}`);
+}
+
+async function captureScreenshot(page, filename) {
+  await page.screenshot({
+    path: `${screenshotDir}/${filename}`,
+    fullPage: false,
+  });
 }
 
 async function expectVisibleText(page, text) {

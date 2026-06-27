@@ -133,6 +133,24 @@
     });
   }
 
+  function selectCardFromClick(event: MouseEvent, monthNumber: number): void {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("button, input, select, textarea, a")) return;
+
+    selectMonth(monthNumber);
+  }
+
+  function selectCardFromKey(event: KeyboardEvent, monthNumber: number): void {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("button, input, select, textarea, a")) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    event.preventDefault();
+    selectMonth(monthNumber);
+  }
+
   function monthTotal(monthNumber: number) {
     return totals.months.find((month) => month.month === monthNumber)?.totals;
   }
@@ -344,16 +362,20 @@
   <section class="board" aria-label="Maandkaarten">
     {#each selectedYear.months as month}
       {@const total = monthTotal(month.month)}
-      <article
+      <div
         class:active-card={activeMonth === month.month}
         class="month-card"
         aria-label={monthName(month.month)}
+        aria-pressed={activeMonth === month.month}
         data-month-card={month.month}
+        onclick={(event) => selectCardFromClick(event, month.month)}
+        onkeydown={(event) => selectCardFromKey(event, month.month)}
+        role="button"
+        tabindex="0"
       >
         <header class="month-header">
           <img src={monthImage(month.month)} alt="" />
-          <div>
-            <span>Maand {month.month}</span>
+          <div class="month-title">
             <h2>{monthName(month.month)}</h2>
           </div>
           <div class="month-tools">
@@ -491,7 +513,7 @@
             <strong class:negative={(total?.restCents ?? 0) < 0}>{formatMoneyCents(total?.restCents ?? 0)}</strong>
           </span>
         </footer>
-      </article>
+      </div>
     {/each}
   </section>
 
