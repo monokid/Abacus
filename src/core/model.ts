@@ -41,7 +41,7 @@ export interface RecurringRule {
   subcategoryId: string | null;
   party: string;
   description: string;
-  amount: number | null;
+  amountCents: number | null;
   startYear: number;
   startMonth: number;
   endYear: number | null;
@@ -59,7 +59,7 @@ export interface RecurringSkip {
 
 export interface BudgetYear {
   year: number;
-  startBalance: number;
+  startBalanceCents: number;
   months: BudgetMonth[];
   trashed: boolean;
   deletedAt: string | null;
@@ -78,7 +78,7 @@ export interface Entry {
   date: string;
   party: string;
   description: string;
-  amount: number | null;
+  amountCents: number | null;
   comment: string;
   createdAt: number;
 }
@@ -103,10 +103,10 @@ export function createEmptyBook(year = new Date().getFullYear()): Book {
   };
 }
 
-export function createYear(year: number, startBalance: number): BudgetYear {
+export function createYear(year: number, startBalanceCents: number): BudgetYear {
   return {
     year,
-    startBalance,
+    startBalanceCents,
     trashed: false,
     deletedAt: null,
     months: Array.from({ length: 12 }, (_, index) => ({
@@ -157,9 +157,29 @@ export function validateBook(book: Book): string[] {
     if (!item.name.trim()) issues.push(`Subcategorie '${item.id}' heeft geen naam.`);
   }
 
+  for (const rule of book.recurringRules ?? []) {
+    if (!rule.id) issues.push("Terugkerende regel zonder id.");
+    if (!isSection(rule.section)) issues.push(`Terugkerende regel '${rule.id}' heeft een onbekende hoofdgroep.`);
+    if (rule.subcategoryId) {
+      const match = book.subcategories.find((item) => item.id === rule.subcategoryId);
+      if (!match) issues.push(`Terugkerende regel '${rule.id}' verwijst naar een onbekende subcategorie.`);
+      if (match && match.section !== rule.section) {
+        issues.push(`Terugkerende regel '${rule.id}' gebruikt een subcategorie uit de verkeerde hoofdgroep.`);
+      }
+    }
+    if (!rule.description.trim()) issues.push(`Terugkerende regel '${rule.id}' heeft geen label.`);
+    if (rule.amountCents !== null && !Number.isInteger(rule.amountCents)) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft geen geheel aantal cent.`);
+    }
+    if (!Number.isInteger(rule.startYear)) issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldig startjaar.`);
+    if (!Number.isInteger(rule.startMonth) || rule.startMonth < 1 || rule.startMonth > 12) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldige startmaand.`);
+    }
+  }
+
   for (const year of book.years ?? []) {
     if (!Number.isInteger(year.year)) issues.push("Jaar is geen geheel getal.");
-    if (!Number.isFinite(year.startBalance)) issues.push(`Startsaldo van ${year.year} is ongeldig.`);
+    if (!Number.isInteger(year.startBalanceCents)) issues.push(`Startsaldo van ${year.year} is geen geheel aantal cent.`);
     if (year.months.length !== 12) issues.push(`${year.year} heeft niet exact 12 maanden.`);
 
     const monthNumbers = new Set<number>();
@@ -180,8 +200,8 @@ export function validateBook(book: Book): string[] {
             issues.push(`Boekingsregel '${entry.id}' gebruikt een subcategorie uit de verkeerde hoofdgroep.`);
           }
         }
-        if (entry.amount !== null && !Number.isFinite(entry.amount)) {
-          issues.push(`Boekingsregel '${entry.id}' heeft een ongeldig bedrag.`);
+        if (entry.amountCents !== null && !Number.isInteger(entry.amountCents)) {
+          issues.push(`Boekingsregel '${entry.id}' heeft geen geheel aantal cent.`);
         }
       }
     }

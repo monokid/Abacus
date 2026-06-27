@@ -1,31 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { formatDecimal, formatMoney, parseMoney } from "../../src/core/money";
+import { formatDecimalCents, formatMoneyCents, parseMoneyToCents } from "../../src/core/money";
 
-describe("parseMoney", () => {
+describe("parseMoneyToCents", () => {
   it.each([
     ["", 0],
     ["abc", 0],
-    ["123", 123],
-    ["123,45", 123.45],
-    ["123.45", 123.45],
-    ["1.234", 1234],
-    ["1.234.567", 1234567],
-    ["1,234", 1.234],
-    ["1.234,56", 1234.56],
-    ["1,234.56", 1234.56],
-    ["€ 1.234,56", 1234.56],
-    ["-12,50", -12.5],
+    ["123", 12_300],
+    ["123,45", 12_345],
+    ["123.45", 12_345],
+    ["1.234", 123_400],
+    ["1.234.567", 123_456_700],
+    ["1,234", 123],
+    ["1,235", 124],
+    ["1.234,56", 123_456],
+    ["1,234.56", 123_456],
+    ["\u20ac 1.234,56", 123_456],
+    ["-12,50", -1_250],
   ])("parses %s", (input, expected) => {
-    expect(parseMoney(input)).toBe(expected);
+    expect(parseMoneyToCents(input)).toBe(expected);
   });
 });
 
-describe("formatMoney", () => {
+describe("formatMoneyCents", () => {
   it("formats Belgian Dutch euros", () => {
-    expect(formatMoney(1234.56)).toBe("€ 1.234,56");
+    expect(formatMoneyCents(123_456)).toBe("\u20ac\u00a01.234,56");
   });
 
   it("keeps null decimal amounts blank", () => {
-    expect(formatDecimal(null)).toBe("");
+    expect(formatDecimalCents(null)).toBe("");
   });
 });

@@ -5,23 +5,23 @@ import { fictionalSampleBook } from "../../src/core/sample-data";
 
 describe("monthTotals", () => {
   it("calculates income, expenses, difference, and rest", () => {
-    const year = createYear(2026, 50);
+    const year = createYear(2026, 5_000);
     const january = year.months[0];
     if (!january) throw new Error("Missing January");
 
     january.entries.push(
-      row("income", "inkomsten", null, 1000),
-      row("fixed", "vaste_kosten", null, 300),
-      row("variable", "variabele_kosten", null, 200),
+      row("income", "inkomsten", null, 100_000),
+      row("fixed", "vaste_kosten", null, 30_000),
+      row("variable", "variabele_kosten", null, 20_000),
     );
 
-    expect(monthTotals(january, 50)).toMatchObject({
-      income: 1000,
-      fixed: 300,
-      variable: 200,
-      out: 500,
-      difference: 500,
-      rest: 550,
+    expect(monthTotals(january, 5_000)).toMatchObject({
+      incomeCents: 100_000,
+      fixedCents: 30_000,
+      variableCents: 20_000,
+      outCents: 50_000,
+      differenceCents: 50_000,
+      restCents: 55_000,
     });
   });
 
@@ -30,26 +30,26 @@ describe("monthTotals", () => {
     const january = year.months[0];
     if (!january) throw new Error("Missing January");
 
-    january.entries.push(row("income", "inkomsten", null, 100), row("blank", "inkomsten", null, null));
+    january.entries.push(row("income", "inkomsten", null, 10_000), row("blank", "inkomsten", null, null));
 
-    expect(monthTotals(january, 0).income).toBe(100);
-    expect(january.entries[1]?.amount).toBeNull();
+    expect(monthTotals(january, 0).incomeCents).toBe(10_000);
+    expect(january.entries[1]?.amountCents).toBeNull();
   });
 });
 
 describe("yearTotals", () => {
   it("carries one month end balance into the next month", () => {
-    const year = createYear(2026, 100);
+    const year = createYear(2026, 10_000);
     const january = year.months[0];
     if (!january) throw new Error("Missing January");
-    january.entries.push(row("income", "inkomsten", null, 500));
+    january.entries.push(row("income", "inkomsten", null, 50_000));
 
     const totals = yearTotals(year);
 
-    expect(totals.months[0]?.totals.start).toBe(100);
-    expect(totals.months[0]?.totals.rest).toBe(600);
-    expect(totals.months[1]?.totals.start).toBe(600);
-    expect(totals.end).toBe(600);
+    expect(totals.months[0]?.totals.startCents).toBe(10_000);
+    expect(totals.months[0]?.totals.restCents).toBe(60_000);
+    expect(totals.months[1]?.totals.startCents).toBe(60_000);
+    expect(totals.endCents).toBe(60_000);
   });
 
   it("rolls up fictional sample data with subcategory totals", () => {
@@ -59,13 +59,18 @@ describe("yearTotals", () => {
 
     const totals = yearTotals(year);
 
-    expect(totals.income).toBeCloseTo(4714.12);
-    expect(totals.months[0]?.totals.bySubcategory["sub-vast-energie"]).toBeCloseTo(154.31);
-    expect(totals.months[1]?.totals.bySubcategory["sub-var-auto"]).toBe(0);
+    expect(totals.incomeCents).toBe(471_412);
+    expect(totals.months[0]?.totals.bySubcategoryCents["sub-vast-energie"]).toBe(15_431);
+    expect(totals.months[1]?.totals.bySubcategoryCents["sub-var-auto"]).toBe(0);
   });
 });
 
-function row(id: string, section: "inkomsten" | "vaste_kosten" | "variabele_kosten", subcategoryId: string | null, amount: number | null) {
+function row(
+  id: string,
+  section: "inkomsten" | "vaste_kosten" | "variabele_kosten",
+  subcategoryId: string | null,
+  amountCents: number | null,
+) {
   return {
     id,
     section,
@@ -73,7 +78,7 @@ function row(id: string, section: "inkomsten" | "vaste_kosten" | "variabele_kost
     date: "2026-01-01",
     party: "",
     description: id,
-    amount,
+    amountCents,
     comment: "",
     createdAt: 1,
   };

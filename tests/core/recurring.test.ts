@@ -62,7 +62,7 @@ function rule(overrides: Partial<RecurringRule>): RecurringRule {
     subcategoryId: "sub-var-huishouden",
     party: "",
     description: "Huishoudgeld",
-    amount: 90,
+    amountCents: 9_000,
     startYear: 2026,
     startMonth: 1,
     endYear: null,

@@ -87,10 +87,25 @@ Subcategory requirements:
 - Deleting or hiding a subcategory should not delete rows.
 - Future Excel import must be able to map old spreadsheet labels/blocks into this model.
 
+## Money Model
+
+The core data model stores money as integer cents:
+
+- Year opening balances use `startBalanceCents`.
+- Entry amounts use `amountCents`.
+- Recurring rule defaults use `amountCents`.
+- Blank editable amounts are stored as `null`, never as `0`.
+
+This keeps calculations robust and avoids floating-point rounding drift. Backups remain
+plain JSON and readable: a value such as `123456` means `1234,56 EUR`. Display, Excel
+export, PDF export, and import adapters convert between cents and user-facing euro
+formats at the boundary.
+
 ## Functional Non-Negotiables
 
 - UI is 100% Dutch.
 - Empty amount stays empty. It is never displayed or stored as typed zero.
+- Money is stored as integer cents in the core and persisted JSON.
 - Input commits on blur.
 - Tab, Enter, Escape, and click-away behavior must be predictable.
 - While typing, the view must not jump, scroll unexpectedly, or move focus.

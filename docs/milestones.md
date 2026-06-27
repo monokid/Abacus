@@ -48,6 +48,7 @@ Deliverables:
 - Data model.
 - Fictional sample year.
 - Section-scoped subcategory model.
+- Integer-cent money model.
 - Money parsing/formatting for `nl-BE`.
 - Month and year calculations.
 - Carry-forward logic.
@@ -60,6 +61,7 @@ Exit criteria:
 - Test data is fictional.
 - Model leaves room for future Excel import.
 - Subcategories can be represented without breaking top-level section calculations.
+- Calculations use integer cents, with blank amounts preserved as `null`.
 
 ## Milestone 3: Barebones Month Prototype
 

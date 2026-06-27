@@ -8,9 +8,34 @@ const decimalFormatter = new Intl.NumberFormat("nl-BE", {
   maximumFractionDigits: 2,
 });
 
-export function parseMoney(input: unknown): number {
-  let text = String(input ?? "").replace(/[€\s]/g, "");
-  if (!text) return 0;
+export function parseMoneyToCents(input: unknown): number {
+  const normalized = normalizeMoneyInput(input);
+  if (!normalized) return 0;
+
+  const sign = normalized.startsWith("-") ? -1 : 1;
+  const unsigned = normalized.replace(/^[+-]/, "");
+  const [eurosPart = "0", centsPart = ""] = unsigned.split(".");
+
+  if (!/^\d+$/.test(eurosPart) || (centsPart && !/^\d+$/.test(centsPart))) return 0;
+
+  const euros = Number(eurosPart);
+  if (!Number.isSafeInteger(euros)) return 0;
+
+  const cents = Math.round(Number(`0.${centsPart || "0"}`) * 100);
+  return sign * (euros * 100 + cents);
+}
+
+export function formatMoneyCents(valueCents: number): string {
+  return moneyFormatter.format(valueCents / 100);
+}
+
+export function formatDecimalCents(valueCents: number | null): string {
+  return valueCents === null ? "" : decimalFormatter.format(valueCents / 100);
+}
+
+function normalizeMoneyInput(input: unknown): string {
+  let text = String(input ?? "").replace(/[\u20ac\s]/g, "");
+  if (!text) return "";
 
   const lastComma = text.lastIndexOf(",");
   const lastDot = text.lastIndexOf(".");
@@ -27,14 +52,5 @@ export function parseMoney(input: unknown): number {
     }
   }
 
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-export function formatMoney(value: number): string {
-  return moneyFormatter.format(value);
-}
-
-export function formatDecimal(value: number | null): string {
-  return value === null ? "" : decimalFormatter.format(value);
+  return text;
 }

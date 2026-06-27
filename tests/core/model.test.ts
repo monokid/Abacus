@@ -34,11 +34,39 @@ describe("model", () => {
       date: "2026-01-01",
       party: "",
       description: "Verkeerd gekoppeld",
-      amount: 10,
+      amountCents: 1_000,
       comment: "",
       createdAt: 1,
     });
 
     expect(validateBook(book)).toContain("Boekingsregel 'bad-entry' gebruikt een subcategorie uit de verkeerde hoofdgroep.");
+  });
+
+  it("rejects recurring rules with invalid cents or subcategory scope", () => {
+    const book = createEmptyBook(2026);
+
+    book.recurringRules.push({
+      id: "bad-rule",
+      active: true,
+      section: "inkomsten",
+      subcategoryId: "sub-vast-wonen",
+      party: "",
+      description: "Verkeerd gekoppeld",
+      amountCents: 12.5,
+      startYear: 2026,
+      startMonth: 1,
+      endYear: null,
+      endMonth: null,
+      maxCount: null,
+      frequency: "monthly",
+      pattern: "",
+    });
+
+    expect(validateBook(book)).toEqual(
+      expect.arrayContaining([
+        "Terugkerende regel 'bad-rule' gebruikt een subcategorie uit de verkeerde hoofdgroep.",
+        "Terugkerende regel 'bad-rule' heeft geen geheel aantal cent.",
+      ]),
+    );
   });
 });
