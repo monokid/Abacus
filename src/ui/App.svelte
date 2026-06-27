@@ -200,7 +200,7 @@
     const draft = drafts[key];
     if (!draft) return;
 
-    const party = section === "inkomsten" ? "" : draft.party.trim();
+    const party = draft.party.trim();
     const description = draft.description.trim();
     const amountText = draft.amountText.trim();
     if (!party && !description && !amountText) return;
@@ -427,17 +427,15 @@
                 onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
                 onfocusin={() => activateMonthForInput(month.month)}
               >
-                {#if section !== "inkomsten"}
-                  <label class="field">
-                    <span>Partij</span>
-                    <input
-                      aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
-                      bind:value={draft.party}
-                      placeholder="Bij wie?"
-                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                    />
-                  </label>
-                {/if}
+                <label class="field">
+                  <span>Partij</span>
+                  <input
+                    aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
+                    bind:value={draft.party}
+                    placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                  />
+                </label>
 
                 <label class="field label-field">
                   <span>Omschrijving</span>

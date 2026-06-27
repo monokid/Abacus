@@ -537,10 +537,6 @@ h1 {
   background: rgba(255, 247, 241, 0.88);
 }
 
-.budget-section[aria-label="Inkomsten"] .new-entry-panel {
-  grid-template-columns: minmax(0, 1.58fr) minmax(0, 0.76fr) 30px;
-}
-
 .field {
   display: grid;
   gap: 4px;
@@ -731,8 +727,7 @@ h1 {
     grid-template-columns: 1fr 1.2fr 0.82fr 32px;
   }
 
-  .new-entry-panel,
-  .budget-section[aria-label="Inkomsten"] .new-entry-panel {
+  .new-entry-panel {
     grid-template-columns: 1fr;
   }
 

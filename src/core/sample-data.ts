@@ -12,8 +12,8 @@ export function fictionalSampleBook(): Book {
   if (!january || !february) return book;
 
   january.entries = [
-    entry("jan-income-pension", "inkomsten", "sub-ink-pensioen", "2026-01-01", "", "Pensioen", 233_259, 1),
-    entry("jan-income-family", "inkomsten", "sub-ink-familie", "2026-01-01", "", "Bijdrage familie", 4_894, 2),
+    entry("jan-income-pension", "inkomsten", "sub-ink-pensioen", "2026-01-01", "Pensioendienst", "Pensioen", 233_259, 1),
+    entry("jan-income-family", "inkomsten", "sub-ink-familie", "2026-01-01", "Familie", "Bijdrage familie", 4_894, 2),
     entry("jan-rent", "vaste_kosten", "sub-vast-wonen", "2026-01-03", "Woonfonds", "Huur", 82_000, 3),
     entry("jan-energy", "vaste_kosten", "sub-vast-energie", "2026-01-05", "Luminus", "Voorschot energie", 15_431, 4),
     entry("jan-health", "variabele_kosten", "sub-var-gezondheid", "2026-01-12", "Apotheek", "Medicatie", 3_780, 5),
@@ -21,14 +21,14 @@ export function fictionalSampleBook(): Book {
   ];
 
   february.entries = [
-    entry("feb-income-pension", "inkomsten", "sub-ink-pensioen", "2026-02-01", "", "Pensioen", 233_259, 7),
+    entry("feb-income-pension", "inkomsten", "sub-ink-pensioen", "2026-02-01", "Pensioendienst", "Pensioen", 233_259, 7),
     entry("feb-telecom", "vaste_kosten", "sub-vast-telecom", "2026-02-04", "Telenet", "Internet en telefoon", 7_643, 8),
     entry("feb-gift", "variabele_kosten", "sub-var-cadeaus", "2026-02-18", "Familie", "Verjaardag", 5_000, 9),
     entry("feb-empty-plan", "variabele_kosten", "sub-var-auto", "2026-02-20", "Garage", "Nog te plannen", null, 10),
   ];
 
   book.labels = {
-    parties: ["Luminus", "Telenet", "Apotheek", "Delhaize", "Garage"],
+    parties: ["Pensioendienst", "Familie", "Luminus", "Telenet", "Apotheek", "Delhaize", "Garage"],
     income: ["Pensioen", "Bijdrage familie"],
     expense: ["Huur", "Voorschot energie", "Medicatie", "Huishouden", "Internet en telefoon", "Verjaardag"],
   };

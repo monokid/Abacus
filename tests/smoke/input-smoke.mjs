@@ -44,14 +44,15 @@ try {
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectNoMonthNumberLabels(page);
   await expectCategoryInputs(page);
-  await focusInactiveMonthInput(page, 2);
+  await expectIncomePartyInputs(page);
+  await focusInactiveMonthIncomePartyInput(page, 2);
   await expectActiveMonthVisible(page, 2);
-  await expectFocusedInputInMonth(page, 2);
+  await expectFocusedInputInMonth(page, 2, "Partij");
   await page.keyboard.press("Escape");
   await navigateToMonth(page, 1);
   await expectActiveMonthVisible(page, 1);
   await expectDraftPanelsContained(page, "eerste laadbeurt");
-  await tabToIncomeAddButton(page);
+  await expectIncomeDraftTabOrder(page, 1);
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
   await expectScrollbarsHidden(page);
@@ -99,10 +100,16 @@ try {
 
   await fillIncomeAndCancel(page);
   await expectHiddenText(page, "Wordt geannuleerd");
+  await fillIncomeWithParty(page);
+  await expectVisibleText(page, "Pensioenfonds rooktest");
+  await expectVisibleText(page, "Inkomen met partij rooktest");
+  await expectVisibleText(page, "123,45");
 
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectVisibleText(page, "Klik weg rooktest");
+  await expectVisibleText(page, "Pensioenfonds rooktest");
+  await expectVisibleText(page, "Inkomen met partij rooktest");
   await expectDraftPanelsContained(page, "na verversen");
 
   if (runtimeErrors.length > 0) {
@@ -124,23 +131,26 @@ async function fillExpense(page, { party, description, amount }) {
   await amountInput.press("Enter");
 }
 
-async function focusInactiveMonthInput(page, monthNumber) {
-  const input = page.locator(`[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"] input[aria-label^="Omschrijving"]`);
+async function focusInactiveMonthIncomePartyInput(page, monthNumber) {
+  const input = page.locator(`[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"] input[aria-label^="Partij"]`);
   await input.click();
-  await input.fill("Klad invoer");
+  await input.fill("Klad partij");
 }
 
-async function expectFocusedInputInMonth(page, monthNumber) {
-  const issue = await page.evaluate((targetMonthNumber) => {
+async function expectFocusedInputInMonth(page, monthNumber, expectedLabelPrefix) {
+  const issue = await page.evaluate(({ targetMonthNumber, labelPrefix }) => {
     const activeElement = document.activeElement;
     if (!(activeElement instanceof HTMLInputElement)) return "Actieve focus staat niet in een invoerveld.";
+    if (!activeElement.getAttribute("aria-label")?.startsWith(labelPrefix)) {
+      return `Focus staat niet in het verwachte ${labelPrefix}-veld.`;
+    }
 
     const card = activeElement.closest(".month-card");
     if (!(card instanceof HTMLElement)) return "Invoerveld staat niet in een maandkaart.";
     if (card.dataset.monthCard !== String(targetMonthNumber)) return "Invoerveld staat niet in de verwachte maandkaart.";
 
     return "";
-  }, monthNumber);
+  }, { targetMonthNumber: monthNumber, labelPrefix: expectedLabelPrefix });
 
   if (issue) throw new Error(`Invoerfocuscontrole faalde voor maand ${monthNumber}: ${issue}`);
 }
@@ -160,14 +170,52 @@ async function fillVariableAndCommitOnBlur(page) {
 
 async function fillIncomeAndCancel(page) {
   const draft = page.locator('[data-testid="draft-9-inkomsten-sub-ink-pensioen"]');
+  await draft.locator('input[aria-label^="Partij"]').fill("Pensioenfonds annulering");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Wordt geannuleerd");
   await draft.locator('input[aria-label^="Omschrijving"]').press("Escape");
 }
 
-async function tabToIncomeAddButton(page) {
-  const draft = page.locator('[data-testid="draft-1-inkomsten-sub-ink-pensioen"]');
-  await draft.locator('input[aria-label^="Bedrag"]').focus();
+async function fillIncomeWithParty(page) {
+  const draft = page.locator('[data-testid="draft-9-inkomsten-sub-ink-pensioen"]');
+  await draft.locator('input[aria-label^="Partij"]').fill("Pensioenfonds rooktest");
+  await draft.locator('input[aria-label^="Omschrijving"]').fill("Inkomen met partij rooktest");
+  const amountInput = draft.locator('input[aria-label^="Bedrag"]');
+  await amountInput.fill("123,45");
+  await amountInput.press("Enter");
+}
+
+async function expectIncomeDraftTabOrder(page, monthNumber) {
+  const draftSelector = `[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"]`;
+  await page.locator(`${draftSelector} input[aria-label^="Partij"]`).focus();
+  await expectFocusedControl(page, draftSelector, 'input[aria-label^="Partij"]', "tabvolgorde start bij Partij");
   await page.keyboard.press("Tab");
+  await expectFocusedControl(page, draftSelector, 'input[aria-label^="Omschrijving"]', "tabvolgorde naar Omschrijving");
+  await page.keyboard.press("Tab");
+  await expectFocusedControl(page, draftSelector, 'input[aria-label^="Bedrag"]', "tabvolgorde naar Bedrag");
+  await page.keyboard.press("Tab");
+  await expectFocusedControl(page, draftSelector, "button.add-entry", "tabvolgorde naar plusknop");
+}
+
+async function expectFocusedControl(page, draftSelector, controlSelector, label) {
+  const issue = await page.evaluate(
+    ({ panelSelector, selector }) => {
+      const panel = document.querySelector(panelSelector);
+      if (!(panel instanceof HTMLElement)) return "Invoerpaneel ontbreekt.";
+
+      const expected = panel.querySelector(selector);
+      if (!(expected instanceof HTMLElement)) return `Verwacht focusdoel ontbreekt: ${selector}`;
+      if (document.activeElement !== expected) {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement)) return "Geen actief element gevonden.";
+        return `Focus staat op ${active.tagName.toLowerCase()} ${active.getAttribute("aria-label") ?? active.textContent?.trim() ?? ""}.`;
+      }
+
+      return "";
+    },
+    { panelSelector: draftSelector, selector: controlSelector },
+  );
+
+  if (issue) throw new Error(`Inkomen-tabcontrole faalde (${label}): ${issue}`);
 }
 
 async function expectDraftPanelsContained(page, label) {
@@ -393,6 +441,40 @@ async function expectCategoryInputs(page) {
   });
 
   if (issue) throw new Error(`Categorie-invoercontrole faalde: ${issue}`);
+}
+
+async function expectIncomePartyInputs(page) {
+  const issues = await page.evaluate(() => {
+    const incomePanels = Array.from(document.querySelectorAll('.budget-section[aria-label="Inkomsten"] .new-entry-panel'));
+    if (incomePanels.length === 0) return ["Geen inkomsten-invoerrijen gevonden."];
+
+    return incomePanels.flatMap((panel, index) => {
+      const rowIssues = [];
+      const partyInput = panel.querySelector('input[aria-label^="Partij"]');
+      const descriptionInput = panel.querySelector('input[aria-label^="Omschrijving"]');
+      const amountInput = panel.querySelector('input[aria-label^="Bedrag"]');
+
+      if (!(partyInput instanceof HTMLInputElement)) rowIssues.push(`Inkomstenrij ${index + 1}: Partij-invoer ontbreekt.`);
+      if (!(descriptionInput instanceof HTMLInputElement)) rowIssues.push(`Inkomstenrij ${index + 1}: Omschrijving-invoer ontbreekt.`);
+      if (!(amountInput instanceof HTMLInputElement)) rowIssues.push(`Inkomstenrij ${index + 1}: Bedrag-invoer ontbreekt.`);
+
+      if (partyInput instanceof HTMLInputElement && descriptionInput instanceof HTMLInputElement && amountInput instanceof HTMLInputElement) {
+        const controls = Array.from(panel.querySelectorAll("input, button"));
+        const partyIndex = controls.indexOf(partyInput);
+        const descriptionIndex = controls.indexOf(descriptionInput);
+        const amountIndex = controls.indexOf(amountInput);
+        if (!(partyIndex < descriptionIndex && descriptionIndex < amountIndex)) {
+          rowIssues.push(`Inkomstenrij ${index + 1}: tabvolgorde is niet Partij, Omschrijving, Bedrag.`);
+        }
+      }
+
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Partijcontrole voor inkomsten faalde:\n${issues.join("\n")}`);
+  }
 }
 
 async function expectMonthHeaderLayout(page, label) {
