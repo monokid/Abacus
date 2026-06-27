@@ -293,7 +293,7 @@ h1 {
   align-items: flex-start;
   gap: 16px;
   overflow-x: auto;
-  padding: 0 24px 26px;
+  padding: 10px 24px 26px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -319,7 +319,7 @@ h1 {
 .month-card.active-card {
   border-color: rgba(48, 106, 60, 0.62);
   background: rgba(255, 254, 249, 0.98);
-  transform: translateY(-4px) scale(1.006);
+  transform: scale(1.006);
   z-index: 2;
   box-shadow:
     0 22px 44px rgba(65, 51, 26, 0.18),
@@ -440,14 +440,23 @@ h1 {
 }
 
 .subcategory-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  padding: 8px 6px 5px;
+  margin-top: 8px;
+  padding: 7px 8px 6px;
   color: #5d684d;
-  border-bottom: 1px solid rgba(119, 99, 62, 0.14);
+  border: 1px solid rgba(119, 99, 62, 0.14);
+  border-radius: 7px 7px 0 0;
+  background: rgba(245, 241, 229, 0.66);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.subcategory-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entry-row {
@@ -476,13 +485,16 @@ h1 {
 
 .new-entry-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr) minmax(0, 1.34fr) minmax(0, 0.76fr) 30px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.36fr) minmax(0, 0.76fr) 30px;
   gap: 7px;
   align-items: end;
-  margin-top: 8px;
+  margin-top: 0;
   padding: 9px;
   border: 1px solid rgba(70, 96, 58, 0.18);
+  border-top: 0;
   border-radius: 7px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
   background: rgba(249, 246, 234, 0.72);
 }
 
@@ -492,11 +504,7 @@ h1 {
 }
 
 .budget-section[aria-label="Inkomsten"] .new-entry-panel {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.32fr) minmax(0, 0.76fr) 30px;
-}
-
-.budget-section[aria-label="Inkomsten"] .new-entry-panel .category-field {
-  grid-column: auto;
+  grid-template-columns: minmax(0, 1.58fr) minmax(0, 0.76fr) 30px;
 }
 
 .field {

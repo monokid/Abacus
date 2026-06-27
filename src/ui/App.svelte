@@ -41,7 +41,6 @@
     party: string;
     description: string;
     amountText: string;
-    subcategoryId: string;
     amountError: string;
   }
 
@@ -177,17 +176,17 @@
     return entriesFor(month, section, null);
   }
 
-  function draftKey(monthNumber: number, section: Section): string {
-    return `${monthNumber}:${section}`;
+  function draftKey(monthNumber: number, section: Section, subcategoryId: string): string {
+    return `${monthNumber}:${section}:${subcategoryId}`;
   }
 
-  function draftFor(monthNumber: number, section: Section): DraftEntry {
-    const key = draftKey(monthNumber, section);
-    return drafts[key] ?? emptyDraft(section);
+  function draftFor(monthNumber: number, section: Section, subcategoryId: string): DraftEntry {
+    const key = draftKey(monthNumber, section, subcategoryId);
+    return drafts[key] ?? emptyDraft();
   }
 
-  function commitDraft(month: BudgetMonth, section: Section): void {
-    const key = draftKey(month.month, section);
+  function commitDraft(month: BudgetMonth, section: Section, subcategoryId: string): void {
+    const key = draftKey(month.month, section, subcategoryId);
     const draft = drafts[key];
     if (!draft) return;
 
@@ -204,7 +203,7 @@
     month.entries.push({
       id: `demo-${month.month}-${section}-${Date.now()}`,
       section,
-      subcategoryId: draft.subcategoryId || null,
+      subcategoryId,
       date: `${selectedYear.year}-${String(month.month).padStart(2, "0")}-01`,
       party,
       description: description || "Nieuwe regel",
@@ -217,38 +216,32 @@
       party: "",
       description: "",
       amountText: "",
-      subcategoryId: draft.subcategoryId,
       amountError: "",
     };
     activeMonth = month.month;
   }
 
-  function maybeHandleDraftKey(event: KeyboardEvent, month: BudgetMonth, section: Section): void {
+  function maybeHandleDraftKey(event: KeyboardEvent, month: BudgetMonth, section: Section, subcategoryId: string): void {
     if (event.key === "Enter") {
       event.preventDefault();
-      commitDraft(month, section);
+      commitDraft(month, section, subcategoryId);
     }
 
     if (event.key === "Escape") {
       event.preventDefault();
-      resetDraft(month.month, section);
+      resetDraft(month.month, section, subcategoryId);
     }
   }
 
-  function maybeCommitOnPanelBlur(event: FocusEvent, month: BudgetMonth, section: Section): void {
+  function maybeCommitOnPanelBlur(event: FocusEvent, month: BudgetMonth, section: Section, subcategoryId: string): void {
     const currentTarget = event.currentTarget;
     const relatedTarget = event.relatedTarget;
     if (currentTarget instanceof HTMLElement && relatedTarget instanceof Node && currentTarget.contains(relatedTarget)) return;
-    commitDraft(month, section);
+    commitDraft(month, section, subcategoryId);
   }
 
-  function resetDraft(monthNumber: number, section: Section): void {
-    const key = draftKey(monthNumber, section);
-    const currentSubcategoryId = drafts[key]?.subcategoryId;
-    drafts[key] = {
-      ...emptyDraft(section),
-      subcategoryId: currentSubcategoryId || emptyDraft(section).subcategoryId,
-    };
+  function resetDraft(monthNumber: number, section: Section, subcategoryId: string): void {
+    drafts[draftKey(monthNumber, section, subcategoryId)] = emptyDraft();
   }
 
   function clearAmountError(draft: DraftEntry): void {
@@ -273,24 +266,21 @@
 
     for (const month of year.months) {
       for (const section of sections) {
-        initialDrafts[draftKey(month.month, section)] = emptyDraft(section, sourceBook);
+        for (const subcategory of sourceBook.subcategories.filter((item) => item.section === section && !item.hidden)) {
+          initialDrafts[draftKey(month.month, section, subcategory.id)] = emptyDraft();
+        }
       }
     }
 
     return initialDrafts;
   }
 
-  function emptyDraft(section: Section, sourceBook = book): DraftEntry {
+  function emptyDraft(): DraftEntry {
     return {
       party: "",
       description: "",
       amountText: "",
       amountError: "",
-      subcategoryId:
-        sourceBook.subcategories
-          .filter((subcategory) => subcategory.section === section && !subcategory.hidden)
-          .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "nl-BE"))[0]
-          ?.id ?? "",
     };
   }
 </script>
@@ -413,9 +403,66 @@
 
             {#each subcategoriesFor(section) as subcategory}
               {@const groupedEntries = entriesFor(month, section, subcategory.id)}
+              {@const subcategoryTotal = total?.bySubcategoryCents[subcategory.id] ?? 0}
               <div class="subcategory-row">
                 <span>{subcategory.name}</span>
-                <strong>{formatMoneyCents(total?.bySubcategoryCents[subcategory.id] ?? 0)}</strong>
+                <strong>{formatMoneyCents(subcategoryTotal)}</strong>
+              </div>
+
+              {@const draft = draftFor(month.month, section, subcategory.id)}
+              <div
+                class:has-error={Boolean(draft.amountError)}
+                class="new-entry-panel"
+                data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
+                onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
+              >
+                {#if section !== "inkomsten"}
+                  <label class="field">
+                    <span>Partij</span>
+                    <input
+                      aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
+                      bind:value={draft.party}
+                      placeholder="Bij wie?"
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                    />
+                  </label>
+                {/if}
+
+                <label class="field label-field">
+                  <span>Omschrijving</span>
+                  <input
+                    aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
+                    bind:value={draft.description}
+                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                  />
+                </label>
+
+                <label class="field amount-field">
+                  <span>Bedrag</span>
+                  <input
+                    aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}-${subcategory.id}` : undefined}
+                    aria-invalid={Boolean(draft.amountError)}
+                    aria-label={`Bedrag voor ${subcategory.name} in ${monthName(month.month)}`}
+                    bind:value={draft.amountText}
+                    inputmode="decimal"
+                    placeholder="0,00"
+                    oninput={() => clearAmountError(draft)}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                  />
+                  {#if draft.amountError}
+                    <small id={`amount-error-${month.month}-${section}-${subcategory.id}`} class="field-error">{draft.amountError}</small>
+                  {/if}
+                </label>
+
+                <button
+                  class="add-entry"
+                  type="button"
+                  aria-label={`Nieuwe regel toevoegen aan ${subcategory.name}`}
+                  onclick={() => commitDraft(month, section, subcategory.id)}
+                >
+                  <Plus size={16} />
+                </button>
               </div>
 
               {#if groupedEntries.length > 0}
@@ -438,68 +485,6 @@
                 <button type="button" aria-label="Nota"><MessageCircle size={15} /></button>
               </div>
             {/each}
-
-            {#if true}
-              {@const draft = draftFor(month.month, section)}
-              <div
-                class:has-error={Boolean(draft.amountError)}
-                class="new-entry-panel"
-                data-testid={`draft-${month.month}-${section}`}
-                onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section)}
-              >
-                <label class="field category-field">
-                  <span>Subcategorie</span>
-                  <select aria-label={`Subcategorie voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`} bind:value={draft.subcategoryId}>
-                    {#each subcategoriesFor(section) as subcategory}
-                      <option value={subcategory.id}>{subcategory.name}</option>
-                    {/each}
-                  </select>
-                </label>
-
-                {#if section !== "inkomsten"}
-                  <label class="field">
-                    <span>Partij</span>
-                    <input
-                      aria-label={`Partij voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
-                      bind:value={draft.party}
-                      placeholder="Bij wie?"
-                      onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
-                    />
-                  </label>
-                {/if}
-
-                <label class="field label-field">
-                  <span>Omschrijving</span>
-                  <input
-                    aria-label={`Omschrijving voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
-                    bind:value={draft.description}
-                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
-                  />
-                </label>
-
-                <label class="field amount-field">
-                  <span>Bedrag</span>
-                  <input
-                    aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}` : undefined}
-                    aria-invalid={Boolean(draft.amountError)}
-                    aria-label={`Bedrag voor ${SECTION_LABELS[section]} in ${monthName(month.month)}`}
-                    bind:value={draft.amountText}
-                    inputmode="decimal"
-                    placeholder="0,00"
-                    oninput={() => clearAmountError(draft)}
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section)}
-                  />
-                  {#if draft.amountError}
-                    <small id={`amount-error-${month.month}-${section}`} class="field-error">{draft.amountError}</small>
-                  {/if}
-                </label>
-
-                <button class="add-entry" type="button" aria-label="Nieuwe regel toevoegen" onclick={() => commitDraft(month, section)}>
-                  <Plus size={16} />
-                </button>
-              </div>
-            {/if}
           </section>
         {/each}
 

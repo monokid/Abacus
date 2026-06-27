@@ -42,6 +42,7 @@ try {
   await captureScreenshot(page, "01-initial-board.png");
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectNoMonthNumberLabels(page);
+  await expectCategoryInputs(page);
   await expectDraftPanelsContained(page, "eerste laadbeurt");
   await tabToIncomeAddButton(page);
   await expectFocusedElementContained(page, "tab naar plusknop");
@@ -52,12 +53,14 @@ try {
   await navigateToMonth(page, 9);
   await expectActiveMonthVisible(page, 9);
   await expectActiveCardProminent(page, 9);
+  await expectActiveCardNotClipped(page, 9);
   await expectMonthHeaderLayout(page, "september actief");
   await captureScreenshot(page, "02-september-active.png");
   await expectMonthTabsVisible(page, "na klik op maandknop");
   await navigateByClickingCard(page, 10);
   await expectActiveMonthVisible(page, 10);
   await expectActiveCardProminent(page, 10);
+  await expectActiveCardNotClipped(page, 10);
   await captureScreenshot(page, "03-october-card-click.png");
   await expectMonthHeaderLayout(page, "oktober via kaartklik");
   await navigateToMonth(page, 9);
@@ -110,7 +113,7 @@ try {
 }
 
 async function fillExpense(page, { party, description, amount }) {
-  const draft = page.locator('[data-testid="draft-1-vaste_kosten"]');
+  const draft = page.locator('[data-testid="draft-1-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Partij"]').fill(party);
   await draft.locator('input[aria-label^="Omschrijving"]').fill(description);
   const amountInput = draft.locator('input[aria-label^="Bedrag"]');
@@ -119,12 +122,12 @@ async function fillExpense(page, { party, description, amount }) {
 }
 
 async function clearInvalidExpenseDraft(page) {
-  const draft = page.locator('[data-testid="draft-1-vaste_kosten"]');
+  const draft = page.locator('[data-testid="draft-1-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Bedrag"]').press("Escape");
 }
 
 async function fillVariableAndCommitOnBlur(page) {
-  const draft = page.locator('[data-testid="draft-1-variabele_kosten"]');
+  const draft = page.locator('[data-testid="draft-1-variabele_kosten-sub-var-gezondheid"]');
   await draft.locator('input[aria-label^="Partij"]').fill("Apotheek");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Klik weg rooktest");
   await draft.locator('input[aria-label^="Bedrag"]').fill("7,89");
@@ -132,13 +135,13 @@ async function fillVariableAndCommitOnBlur(page) {
 }
 
 async function fillIncomeAndCancel(page) {
-  const draft = page.locator('[data-testid="draft-1-inkomsten"]');
+  const draft = page.locator('[data-testid="draft-1-inkomsten-sub-ink-pensioen"]');
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Wordt geannuleerd");
   await draft.locator('input[aria-label^="Omschrijving"]').press("Escape");
 }
 
 async function tabToIncomeAddButton(page) {
-  const draft = page.locator('[data-testid="draft-1-inkomsten"]');
+  const draft = page.locator('[data-testid="draft-1-inkomsten-sub-ink-pensioen"]');
   await draft.locator('input[aria-label^="Bedrag"]').focus();
   await page.keyboard.press("Tab");
 }
@@ -291,6 +294,44 @@ async function expectActiveCardProminent(page, monthNumber) {
   }, monthNumber);
 
   if (issue) throw new Error(`Actieve-kaartcontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectActiveCardNotClipped(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const tabs = document.querySelector('[data-testid="month-tabs"]');
+    const card = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+    if (!(tabs instanceof HTMLElement) || !(card instanceof HTMLElement)) return "Maandbalk of actieve kaart ontbreekt.";
+
+    const tabsRect = tabs.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    if (cardRect.top < tabsRect.bottom - 1) return "Actieve kaart schuift onder de maandbalk.";
+    if (cardRect.top < 0) return "Actieve kaart is bovenaan afgesneden.";
+
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Actieve-kaart clippingcontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectCategoryInputs(page) {
+  const issue = await page.evaluate(() => {
+    const panels = Array.from(document.querySelectorAll(".new-entry-panel"));
+    if (panels.length === 0) return "Geen categorie-invoerpanelen gevonden.";
+    if (panels.some((panel) => panel.querySelector("select"))) return "Een invoerrij bevat nog een categorie-dropdown.";
+
+    for (const panel of panels) {
+      const heading = panel.previousElementSibling;
+      if (!heading?.classList.contains("subcategory-row")) return "Een invoerrij staat niet direct onder een categorietitel.";
+    }
+
+    const categoryRows = Array.from(document.querySelectorAll(".subcategory-row"));
+    if (categoryRows.length === 0) return "Geen categorietitelrijen gevonden.";
+    if (categoryRows.some((row) => !/€\s?[\d.,-]+/.test(row.textContent ?? ""))) return "Een categorietitel mist een subtotaal.";
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Categorie-invoercontrole faalde: ${issue}`);
 }
 
 async function expectMonthHeaderLayout(page, label) {
