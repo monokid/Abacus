@@ -18,7 +18,7 @@
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
-  import type { BudgetMonth, Entry, Subcategory } from "../core/model";
+  import type { Book, BudgetMonth, Entry, Subcategory } from "../core/model";
 
   import januariImage from "../../assets/months/januari.png";
   import februariImage from "../../assets/months/februari.png";
@@ -40,10 +40,13 @@
     subcategoryId: string;
   }
 
-  let book = $state(fictionalSampleBook());
+  const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
+  const initialBook = fictionalSampleBook();
+
+  let book = $state(initialBook);
   let activeMonth = $state(1);
   let evening = $state(false);
-  let drafts = $state<Record<string, DraftEntry>>({});
+  let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -52,7 +55,6 @@
   });
 
   const totals = $derived(yearTotals(selectedYear));
-  const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const months = [
     { name: "Januari", image: januariImage },
     { name: "Februari", image: februariImage },
@@ -108,13 +110,7 @@
 
   function draftFor(monthNumber: number, section: Section): DraftEntry {
     const key = draftKey(monthNumber, section);
-    drafts[key] ??= {
-      party: "",
-      description: "",
-      amountText: "",
-      subcategoryId: subcategoriesFor(section)[0]?.id ?? "",
-    };
-    return drafts[key];
+    return drafts[key] ?? emptyDraft(section);
   }
 
   function commitDraft(month: BudgetMonth, section: Section): void {
@@ -153,6 +149,33 @@
       event.preventDefault();
       commitDraft(month, section);
     }
+  }
+
+  function createDrafts(sourceBook: Book): Record<string, DraftEntry> {
+    const year = sourceBook.years[0];
+    const initialDrafts: Record<string, DraftEntry> = {};
+    if (!year) return initialDrafts;
+
+    for (const month of year.months) {
+      for (const section of sections) {
+        initialDrafts[draftKey(month.month, section)] = emptyDraft(section, sourceBook);
+      }
+    }
+
+    return initialDrafts;
+  }
+
+  function emptyDraft(section: Section, sourceBook = book): DraftEntry {
+    return {
+      party: "",
+      description: "",
+      amountText: "",
+      subcategoryId:
+        sourceBook.subcategories
+          .filter((subcategory) => subcategory.section === section && !subcategory.hidden)
+          .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "nl-BE"))[0]
+          ?.id ?? "",
+    };
   }
 </script>
 
