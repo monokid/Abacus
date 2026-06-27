@@ -10,6 +10,7 @@ The app tracks one calendar year at a time. Each year has 12 months. Each month 
 - Inkomsten
 - Vaste kosten
 - Variabele kosten
+- Configurable subcategories under those three main sections
 - Notes/comments
 - Labels and parties
 - Monthly totals
@@ -50,9 +51,41 @@ Abacus should preserve the emotional direction of the best Electron preview:
 - Natural greens, muted gold, wine/burgundy, warm paper tones.
 - Strong readability for an elderly user.
 - Decoration must never reduce contrast, speed, or clarity.
+- Reuse the 12 legacy month illustrations as first-class month assets. They should appear
+  integrated into the month cards or month navigation, sized and cropped so they support
+  the seasonal/lordly tone without competing with the grid.
 
 The dark/evening mode can exist later, but the first visual target should be the light,
 readable, father-friendly experience.
+
+## Budget Structure
+
+Every budget row belongs to one of three top-level sections:
+
+- Inkomsten
+- Vaste kosten
+- Variabele kosten
+
+The user must be able to configure subcategories from settings. Subcategories appear under
+one of those three top-level sections and help group rows without replacing the main
+section model.
+
+Examples:
+
+- Inkomsten: Pensioen, Terugbetalingen, Familie
+- Vaste kosten: Wonen, Energie, Telecom, Verzekeringen
+- Variabele kosten: Gezondheid, Cadeaus, Auto, Huishouden
+
+Subcategory requirements:
+
+- Subcategories are optional.
+- A row may have no subcategory.
+- Subcategories are configured in Dutch from settings.
+- Subcategories are scoped to exactly one top-level section.
+- Reordering subcategories should change display order without changing row identity.
+- Renaming a subcategory should update existing rows that use it.
+- Deleting or hiding a subcategory should not delete rows.
+- Future Excel import must be able to map old spreadsheet labels/blocks into this model.
 
 ## Functional Non-Negotiables
 
@@ -64,6 +97,9 @@ readable, father-friendly experience.
 - Focus restoration is based on entry identity, not row index.
 - Editing a month must not rerender the entire app.
 - Carry-forward balances must update correctly from the edited month onward.
+- Configurable subcategories must be supported under Inkomsten, Vaste kosten, and
+  Variabele kosten.
+- The 12 seasonal month images from the legacy app are reused and tested in the UI.
 - Fictional sample data ships first.
 - Real Excel import is postponed.
 
@@ -89,4 +125,3 @@ It does not need full backup/export/import features in the first feedback build.
 - Real Excel history import.
 - Auto-update through GitHub Releases.
 - Public release hardening.
-

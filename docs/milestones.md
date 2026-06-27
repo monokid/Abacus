@@ -47,6 +47,7 @@ Deliverables:
 
 - Data model.
 - Fictional sample year.
+- Section-scoped subcategory model.
 - Money parsing/formatting for `nl-BE`.
 - Month and year calculations.
 - Carry-forward logic.
@@ -58,6 +59,7 @@ Exit criteria:
 - Fast verification passes.
 - Test data is fictional.
 - Model leaves room for future Excel import.
+- Subcategories can be represented without breaking top-level section calculations.
 
 ## Milestone 3: Barebones Month Prototype
 
@@ -67,13 +69,16 @@ Deliverables:
 
 - One month card.
 - Three sections: Inkomsten, Vaste kosten, Variabele kosten.
+- Configured subcategories visible inside their parent sections.
 - Existing fictional rows.
 - New-row affordance.
+- Legacy month image used in the month card/header in a readable way.
 - Calm light visual direction.
 
 Exit criteria:
 
 - User can review the shape and visual direction.
+- Month art supports the UI without reducing grid readability.
 - No full feature parity expected yet.
 
 ## Milestone 4: Input Stability Gate
@@ -102,6 +107,7 @@ Goal: turn one month into a usable year.
 Deliverables:
 
 - 12-month rail/cards.
+- All 12 legacy month images wired to the correct months.
 - Year summary.
 - Carry-forward across months.
 - Scoped month updates.
@@ -110,6 +116,7 @@ Exit criteria:
 
 - Editing month N updates N and later balances.
 - Earlier month DOM/state is not rebuilt unnecessarily.
+- Month images feel consistent across the year view.
 
 ## Milestone 6: First Feedback Build
 
@@ -137,6 +144,7 @@ Feature groups:
 - Comments.
 - Validation panel.
 - Labels and label manager.
+- Settings-managed subcategories.
 - History, undo, redo.
 - Recurring editor.
 - Month lock.
@@ -187,4 +195,3 @@ Exit criteria:
 - Public README describes intended audience and limitations.
 - Release process is reproducible.
 - No private assumptions or personal data remain.
-

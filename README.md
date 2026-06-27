@@ -36,6 +36,7 @@ See [ADR 0001](docs/adr/0001-stack-direction.md).
 
 - [Product Spec](docs/product-spec.md)
 - [Milestones](docs/milestones.md)
+- [Communication Rules](docs/communication-rules.md)
 - [Subagent Workflow](docs/subagent-workflow.md)
 - [Source Inventory](docs/source-inventory.md)
 - [GitHub Plan](docs/github-plan.md)
@@ -43,4 +44,3 @@ See [ADR 0001](docs/adr/0001-stack-direction.md).
 ## License
 
 Abacus is licensed under the GNU General Public License v3.0.
-
