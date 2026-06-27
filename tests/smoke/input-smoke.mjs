@@ -24,6 +24,7 @@ try {
     headless: true,
   });
   const page = await browser.newPage();
+  await page.setViewportSize({ width: 954, height: 827 });
   const runtimeErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") runtimeErrors.push(message.text());
@@ -34,6 +35,10 @@ try {
   await page.evaluate((key) => localStorage.removeItem(key), storageKey);
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
+  await expectDraftPanelsContained(page, "eerste laadbeurt");
+  await tabToIncomeAddButton(page);
+  await expectFocusedElementContained(page, "tab naar plusknop");
+  await expectDraftPanelsContained(page, "tab naar plusknop");
 
   await fillExpense(page, {
     party: "Testwinkel",
@@ -62,6 +67,7 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectVisibleText(page, "Klik weg rooktest");
+  await expectDraftPanelsContained(page, "na verversen");
 
   if (runtimeErrors.length > 0) {
     throw new Error(`Browserfouten:\n${runtimeErrors.join("\n")}`);
@@ -99,6 +105,75 @@ async function fillIncomeAndCancel(page) {
   const draft = page.locator('[data-testid="draft-1-inkomsten"]');
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Wordt geannuleerd");
   await draft.locator('input[aria-label^="Omschrijving"]').press("Escape");
+}
+
+async function tabToIncomeAddButton(page) {
+  const draft = page.locator('[data-testid="draft-1-inkomsten"]');
+  await draft.locator('input[aria-label^="Bedrag"]').focus();
+  await page.keyboard.press("Tab");
+}
+
+async function expectDraftPanelsContained(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    return Array.from(document.querySelectorAll(".new-entry-panel")).flatMap((panel, index) => {
+      const card = panel.closest(".month-card");
+      if (!card) return [`Paneel ${index + 1}: geen maandkaart gevonden.`];
+
+      const panelRect = panel.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const panelIssues = [];
+
+      if (panel.scrollWidth > panel.clientWidth + tolerance) {
+        panelIssues.push(`Paneel ${index + 1}: inhoud is breder dan het paneel.`);
+      }
+      if (panelRect.left < cardRect.left - tolerance || panelRect.right > cardRect.right + tolerance) {
+        panelIssues.push(`Paneel ${index + 1}: paneel valt buiten de maandkaart.`);
+      }
+
+      for (const child of Array.from(panel.children)) {
+        const childRect = child.getBoundingClientRect();
+        if (childRect.left < panelRect.left - tolerance || childRect.right > panelRect.right + tolerance) {
+          panelIssues.push(`Paneel ${index + 1}: veld valt buiten het paneel.`);
+        }
+      }
+
+      return panelIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Visuele invoercontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+}
+
+async function expectFocusedElementContained(page, label) {
+  const issue = await page.evaluate(() => {
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement)) return "Geen actief element gevonden.";
+
+    const card = focused.closest(".month-card");
+    if (!card) return "Actief element staat niet in een maandkaart.";
+
+    const tolerance = 1;
+    const focusedRect = focused.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    if (focusedRect.left < cardRect.left - tolerance || focusedRect.right > cardRect.right + tolerance) {
+      return "Actief element valt buiten de maandkaart.";
+    }
+
+    const statusBar = document.querySelector(".status-bar");
+    if (statusBar) {
+      const statusRect = statusBar.getBoundingClientRect();
+      const overlapsVertically = focusedRect.bottom > statusRect.top && focusedRect.top < statusRect.bottom;
+      const overlapsHorizontally = focusedRect.right > statusRect.left && focusedRect.left < statusRect.right;
+      if (overlapsVertically && overlapsHorizontally) return "Actief element wordt door de statusbalk bedekt.";
+    }
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Visuele focuscontrole faalde (${label}): ${issue}`);
 }
 
 async function expectVisibleText(page, text) {
