@@ -529,7 +529,7 @@ h1 {
 .rule-edit-grid,
 .new-rule-grid {
   display: grid;
-  grid-template-columns: minmax(126px, 0.9fr) minmax(138px, 1fr) minmax(126px, 0.9fr) minmax(180px, 1.3fr) minmax(90px, 0.7fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   align-items: end;
 }
@@ -544,6 +544,10 @@ h1 {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.wide-rule-field {
+  grid-column: span 2;
 }
 
 .rule-edit-grid label span,
@@ -593,6 +597,7 @@ h1 {
 .new-rule-grid button {
   color: #fff8e7;
   background: #355f40;
+  align-self: end;
 }
 
 .mode-switch {
@@ -2166,6 +2171,10 @@ h1 {
   .new-rule-grid {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .wide-rule-field {
+    grid-column: auto;
   }
 
   .rule-card-amount {

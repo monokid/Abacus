@@ -1206,7 +1206,7 @@ async function expectRecurringRuleSettings(page) {
   await page.getByLabel("Partij voor nieuwe regel").fill("Watermaatschappij");
   await page.getByLabel("Omschrijving voor nieuwe regel").fill("Waterfilter rooktest");
   await page.getByLabel("Bedrag voor nieuwe regel").fill("15,25");
-  await page.getByLabel("Maandelijkse regel toevoegen").click();
+  await page.getByLabel("Vaste regel toevoegen").click();
   await expectVisibleText(page, "Waterfilter rooktest toegevoegd en toegepast");
 
   await page.getByRole("button", { name: "Jaar" }).click();
@@ -1221,6 +1221,27 @@ async function expectRecurringRuleSettings(page) {
   await page.getByRole("button", { name: "Jaar" }).click();
   await navigateToMonth(page, 1);
   await expectHiddenText(page, "Waterfilter rooktest");
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Vaste regels" }).click();
+  await page.getByLabel("Hoofdgroep voor nieuwe regel").selectOption("variabele_kosten");
+  await page.getByLabel("Subcategorie voor nieuwe regel").selectOption("sub-var-huishouden");
+  await page.getByLabel("Partij voor nieuwe regel").fill("Testwinkel");
+  await page.getByLabel("Omschrijving voor nieuwe regel").fill("Eenmalige rooktest");
+  await page.getByLabel("Bedrag voor nieuwe regel").fill("44,00");
+  await page.getByLabel("Startmaand voor nieuwe regel").selectOption("7");
+  await page.getByLabel("Eindmaand voor nieuwe regel").selectOption("7");
+  await page.getByLabel("Herhaling voor nieuwe regel").selectOption("dates");
+  await page.getByLabel("Patroon voor nieuwe regel").fill("01/07");
+  await page.getByLabel("Vaste regel toevoegen").click();
+  await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
+
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 1);
+  await expectMonthCardHiddenText(page, 1, "Eenmalige rooktest");
+  await navigateToMonth(page, 7);
+  await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
+  await expectMonthCardVisibleText(page, 7, "44,00");
 }
 
 async function expectTooltips(page) {
@@ -1994,6 +2015,16 @@ async function expectVisibleText(page, text) {
 async function expectHiddenText(page, text) {
   const count = await page.getByText(text, { exact: false }).count();
   if (count > 0) throw new Error(`Tekst onverwacht gevonden: ${text}`);
+}
+
+async function expectMonthCardVisibleText(page, monthNumber, text) {
+  const count = await page.locator(`[data-month-card="${monthNumber}"]`).getByText(text, { exact: false }).count();
+  if (count === 0) throw new Error(`Tekst niet gevonden in maand ${monthNumber}: ${text}`);
+}
+
+async function expectMonthCardHiddenText(page, monthNumber, text) {
+  const count = await page.locator(`[data-month-card="${monthNumber}"]`).getByText(text, { exact: false }).count();
+  if (count > 0) throw new Error(`Tekst onverwacht gevonden in maand ${monthNumber}: ${text}`);
 }
 
 async function clearStorage(page) {

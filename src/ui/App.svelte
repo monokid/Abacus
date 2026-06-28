@@ -42,7 +42,7 @@
   import { syncRecurringEntriesForBook } from "../core/recurring";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
-  import type { Book, BudgetMonth, Entry, RecurringRule, Subcategory } from "../core/model";
+  import type { Book, BudgetMonth, Entry, RecurringFrequency, RecurringRule, Subcategory } from "../core/model";
 
   import januariImage from "../../assets/months/januari.png";
   import februariImage from "../../assets/months/februari.png";
@@ -82,6 +82,10 @@
     party: string;
     description: string;
     amountText: string;
+    frequency: RecurringFrequency;
+    pattern: string;
+    startMonth: number;
+    endMonth: number | null;
   }
 
   type AppMode = "demo" | "production";
@@ -107,6 +111,14 @@
     categories: "Categorieen",
     rules: "Vaste regels",
   };
+  const recurringFrequencies: Array<{ value: RecurringFrequency; label: string }> = [
+    { value: "monthly", label: "Elke maand" },
+    { value: "quarterly", label: "Om de drie maanden" },
+    { value: "yearly", label: "Elk jaar" },
+    { value: "months", label: "Gekozen maanden" },
+    { value: "dates", label: "Specifieke datums" },
+    { value: "weekday", label: "Vaste weekdag" },
+  ];
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const initialBook = fictionalSampleBook();
   const today = new Date();
@@ -398,6 +410,10 @@
       party: "",
       description: "",
       amountText: "",
+      frequency: "monthly",
+      pattern: "",
+      startMonth: 1,
+      endMonth: 12,
     };
   }
 
@@ -406,15 +422,7 @@
   }
 
   function ruleFrequencyLabel(rule: RecurringRule): string {
-    const labels: Record<RecurringRule["frequency"], string> = {
-      monthly: "Maandelijks",
-      quarterly: "Driemaandelijks",
-      yearly: "Jaarlijks",
-      months: "Maanden",
-      dates: "Datums",
-      weekday: "Weekdag",
-    };
-    return labels[rule.frequency];
+    return recurringFrequencies.find((frequency) => frequency.value === rule.frequency)?.label ?? "Herhaling";
   }
 
   function ruleSubcategoryLabel(rule: RecurringRule): string {
@@ -424,6 +432,53 @@
 
   function rulePartyLabel(rule: RecurringRule): string {
     return rule.party.trim() || "Geen partij";
+  }
+
+  function ruleScheduleLabel(rule: RecurringRule): string {
+    const end = rule.endMonth === null ? "doorlopend" : monthName(rule.endMonth).toLowerCase();
+    const range = `${monthName(rule.startMonth).toLowerCase()} - ${end}`;
+    if (!frequencyNeedsPattern(rule.frequency)) return `${ruleFrequencyLabel(rule)} / ${range}`;
+    return `${ruleFrequencyLabel(rule)}: ${rule.pattern || "geen patroon"} / ${range}`;
+  }
+
+  function frequencyFromValue(value: string): RecurringFrequency {
+    return recurringFrequencies.some((frequency) => frequency.value === value) ? (value as RecurringFrequency) : "monthly";
+  }
+
+  function monthFromValue(value: string, fallback: number): number {
+    const month = Number(value);
+    return Number.isInteger(month) && month >= 1 && month <= 12 ? month : fallback;
+  }
+
+  function optionalMonthFromValue(value: string): number | null {
+    if (!value) return null;
+    return monthFromValue(value, 12);
+  }
+
+  function frequencyNeedsPattern(frequency: RecurringFrequency): boolean {
+    return frequency === "months" || frequency === "dates" || frequency === "weekday";
+  }
+
+  function patternLabel(frequency: RecurringFrequency): string {
+    if (frequency === "months") return "Maanden";
+    if (frequency === "dates") return "Datums";
+    if (frequency === "weekday") return "Weekdag";
+    return "Patroon";
+  }
+
+  function patternPlaceholder(frequency: RecurringFrequency): string {
+    if (frequency === "months") return "bv. 1,5,9";
+    if (frequency === "dates") return "bv. 15, 01/07";
+    if (frequency === "weekday") return "bv. maandag";
+    return "";
+  }
+
+  function defaultPatternForFrequency(frequency: RecurringFrequency, startMonth: number, currentPattern = ""): string {
+    if (!frequencyNeedsPattern(frequency)) return "";
+    if (currentPattern.trim()) return currentPattern;
+    if (frequency === "months") return String(startMonth);
+    if (frequency === "dates") return `01/${String(startMonth).padStart(2, "0")}`;
+    return "maandag";
   }
 
   function ruleAmountText(rule: RecurringRule): string {
@@ -466,7 +521,14 @@
     });
   }
 
-  function addMonthlyRule(): void {
+  function updateRuleFrequency(rule: RecurringRule, frequency: RecurringFrequency): void {
+    applyRecurringRuleChange(rule.id, {
+      frequency,
+      pattern: defaultPatternForFrequency(frequency, rule.startMonth, rule.pattern),
+    });
+  }
+
+  function addRecurringRule(): void {
     try {
       const rule = addBookRecurringRule(book, {
         active: true,
@@ -476,12 +538,12 @@
         description: newRuleDraft.description,
         amountCents: centsFromOptionalText(newRuleDraft.amountText),
         startYear: selectedYear.year,
-        startMonth: 1,
+        startMonth: newRuleDraft.startMonth,
         endYear: selectedYear.year,
-        endMonth: 12,
+        endMonth: newRuleDraft.endMonth,
         maxCount: null,
-        frequency: "monthly",
-        pattern: "",
+        frequency: newRuleDraft.frequency,
+        pattern: defaultPatternForFrequency(newRuleDraft.frequency, newRuleDraft.startMonth, newRuleDraft.pattern),
       });
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
@@ -495,7 +557,7 @@
   function maybeAddMonthlyRuleFromKey(event: KeyboardEvent): void {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    addMonthlyRule();
+    addRecurringRule();
   }
 
   function entriesFor(month: BudgetMonth, section: Section, subcategoryId: string | null): Entry[] {
@@ -998,7 +1060,7 @@
                     </label>
                     <div class="rule-card-summary">
                       <strong>{rule.description}</strong>
-                      <span>{SECTION_LABELS[rule.section]} / {ruleSubcategoryLabel(rule)} / {rulePartyLabel(rule)} / {ruleFrequencyLabel(rule)}</span>
+                      <span>{SECTION_LABELS[rule.section]} / {ruleSubcategoryLabel(rule)} / {rulePartyLabel(rule)} / {ruleScheduleLabel(rule)}</span>
                     </div>
                     <strong class="rule-card-amount">{formatMoneyCents(rule.amountCents ?? 0)}</strong>
                     <button
@@ -1063,6 +1125,42 @@
                           onblur={(event) => applyRecurringRuleChange(rule.id, { amountCents: centsFromOptionalText(inputValue(event)) })}
                         />
                       </label>
+                      <label>
+                        <span>Herhaling</span>
+                        <select aria-label={`Herhaling voor regel ${rule.description}`} value={rule.frequency} onchange={(event) => updateRuleFrequency(rule, frequencyFromValue(inputValue(event)))}>
+                          {#each recurringFrequencies as frequency}
+                            <option value={frequency.value}>{frequency.label}</option>
+                          {/each}
+                        </select>
+                      </label>
+                      {#if frequencyNeedsPattern(rule.frequency)}
+                        <label class="wide-rule-field">
+                          <span>{patternLabel(rule.frequency)}</span>
+                          <input
+                            aria-label={`Patroon voor regel ${rule.description}`}
+                            value={rule.pattern}
+                            placeholder={patternPlaceholder(rule.frequency)}
+                            onblur={(event) => applyRecurringRuleChange(rule.id, { pattern: inputValue(event) })}
+                          />
+                        </label>
+                      {/if}
+                      <label>
+                        <span>Vanaf</span>
+                        <select aria-label={`Startmaand voor regel ${rule.description}`} value={String(rule.startMonth)} onchange={(event) => applyRecurringRuleChange(rule.id, { startMonth: monthFromValue(inputValue(event), rule.startMonth) })}>
+                          {#each selectedYear.months as month}
+                            <option value={String(month.month)}>{monthName(month.month)}</option>
+                          {/each}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Tot en met</span>
+                        <select aria-label={`Eindmaand voor regel ${rule.description}`} value={rule.endMonth === null ? "" : String(rule.endMonth)} onchange={(event) => applyRecurringRuleChange(rule.id, { endYear: selectedYear.year, endMonth: optionalMonthFromValue(inputValue(event)) })}>
+                          <option value="">Doorlopend</option>
+                          {#each selectedYear.months as month}
+                            <option value={String(month.month)}>{monthName(month.month)}</option>
+                          {/each}
+                        </select>
+                      </label>
                     </div>
                   {/if}
                 </article>
@@ -1115,7 +1213,65 @@
                   <span>Bedrag</span>
                   <input aria-label="Bedrag voor nieuwe regel" bind:value={newRuleDraft.amountText} inputmode="decimal" placeholder="0,00" onkeydown={maybeAddMonthlyRuleFromKey} />
                 </label>
-                <button type="button" aria-label="Maandelijkse regel toevoegen" title="Regel toevoegen" data-tooltip="Regel toevoegen" onclick={addMonthlyRule}>
+                <label>
+                  <span>Herhaling</span>
+                  <select
+                    aria-label="Herhaling voor nieuwe regel"
+                    value={newRuleDraft.frequency}
+                    onchange={(event) => {
+                      const frequency = frequencyFromValue(inputValue(event));
+                      newRuleDraft = { ...newRuleDraft, frequency, pattern: defaultPatternForFrequency(frequency, newRuleDraft.startMonth, newRuleDraft.pattern) };
+                    }}
+                  >
+                    {#each recurringFrequencies as frequency}
+                      <option value={frequency.value}>{frequency.label}</option>
+                    {/each}
+                  </select>
+                </label>
+                {#if frequencyNeedsPattern(newRuleDraft.frequency)}
+                  <label class="wide-rule-field">
+                    <span>{patternLabel(newRuleDraft.frequency)}</span>
+                    <input
+                      aria-label="Patroon voor nieuwe regel"
+                      bind:value={newRuleDraft.pattern}
+                      placeholder={patternPlaceholder(newRuleDraft.frequency)}
+                      onkeydown={maybeAddMonthlyRuleFromKey}
+                    />
+                  </label>
+                {/if}
+                <label>
+                  <span>Vanaf</span>
+                  <select
+                    aria-label="Startmaand voor nieuwe regel"
+                    value={String(newRuleDraft.startMonth)}
+                    onchange={(event) => {
+                      const startMonth = monthFromValue(inputValue(event), newRuleDraft.startMonth);
+                      newRuleDraft = {
+                        ...newRuleDraft,
+                        startMonth,
+                        pattern: defaultPatternForFrequency(newRuleDraft.frequency, startMonth, newRuleDraft.pattern),
+                      };
+                    }}
+                  >
+                    {#each selectedYear.months as month}
+                      <option value={String(month.month)}>{monthName(month.month)}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label>
+                  <span>Tot en met</span>
+                  <select
+                    aria-label="Eindmaand voor nieuwe regel"
+                    value={newRuleDraft.endMonth === null ? "" : String(newRuleDraft.endMonth)}
+                    onchange={(event) => (newRuleDraft = { ...newRuleDraft, endMonth: optionalMonthFromValue(inputValue(event)) })}
+                  >
+                    <option value="">Doorlopend</option>
+                    {#each selectedYear.months as month}
+                      <option value={String(month.month)}>{monthName(month.month)}</option>
+                    {/each}
+                  </select>
+                </label>
+                <button type="button" aria-label="Vaste regel toevoegen" title="Regel toevoegen" data-tooltip="Regel toevoegen" onclick={addRecurringRule}>
                   <Plus size={16} />
                   Regel toevoegen
                 </button>
