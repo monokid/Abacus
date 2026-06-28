@@ -408,7 +408,7 @@ h1 {
 .grid-head,
 .entry-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.55fr 0.85fr 38px;
+  grid-template-columns: 1.05fr 1.42fr 0.78fr 62px;
   align-items: center;
   gap: 8px;
 }
@@ -515,6 +515,62 @@ h1 {
   min-height: 28px;
   width: 30px;
   color: #48613d;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.row-actions button {
+  min-height: 28px;
+  width: 28px;
+}
+
+.row-actions .save-row {
+  color: #fff8e7;
+  background: #355f40;
+  border-color: rgba(48, 96, 60, 0.42);
+}
+
+.edit-row {
+  min-height: 42px;
+  padding: 5px 0;
+  background: rgba(249, 246, 234, 0.62);
+}
+
+.edit-row.has-error {
+  background: rgba(255, 247, 241, 0.88);
+}
+
+.edit-row input {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid rgba(75, 99, 58, 0.24);
+  border-radius: 6px;
+  background: rgba(255, 253, 248, 0.96);
+  color: #253020;
+  padding: 0 7px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.edit-row input:focus {
+  border-color: rgba(47, 106, 60, 0.72);
+  box-shadow: 0 0 0 3px rgba(47, 106, 60, 0.12);
+}
+
+.edit-amount {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.edit-amount input {
+  text-align: right;
 }
 
 .new-entry-panel {
@@ -642,7 +698,8 @@ h1 {
 }
 
 .evening .field input,
-.evening .field select {
+.evening .field select,
+.evening .edit-row input {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(219, 190, 118, 0.24);
   color: #f4ecd8;
@@ -724,7 +781,7 @@ h1 {
   .carry-row,
   .grid-head,
   .entry-row {
-    grid-template-columns: 1fr 1.2fr 0.82fr 32px;
+    grid-template-columns: 1fr 1.2fr 0.82fr 58px;
   }
 
   .new-entry-panel {

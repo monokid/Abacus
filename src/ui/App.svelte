@@ -4,18 +4,21 @@
     CalendarDays,
     ChevronLeft,
     ChevronRight,
+    Check,
     CheckCircle2,
     Download,
     History,
     Lock,
     MessageCircle,
     Moon,
+    Pencil,
     Plus,
     RotateCcw,
     ScrollText,
     Settings,
     Shield,
     Sun,
+    X,
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
@@ -52,6 +55,8 @@
   let activeMonth = $state(1);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
+  let editingEntryId = $state<string | null>(null);
+  let editDraft = $state<DraftEntry>(emptyDraft());
   let storageReady = $state(false);
   let saveStatus = $state("Voorbeeldgegevens");
 
@@ -231,6 +236,45 @@
     activeMonth = month.month;
   }
 
+  function startEdit(month: BudgetMonth, entry: Entry): void {
+    activeMonth = month.month;
+    editingEntryId = entry.id;
+    editDraft = {
+      party: entry.party,
+      description: entry.description,
+      amountText: formatDecimalCents(entry.amountCents),
+      amountError: "",
+    };
+
+    requestAnimationFrame(() => {
+      const input = document.querySelector(`[data-edit-entry="${entry.id}"] input`);
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        input.setSelectionRange(0, 0);
+        input.scrollLeft = 0;
+      }
+    });
+  }
+
+  function saveEdit(entry: Entry): void {
+    const amountText = editDraft.amountText.trim();
+    if (!isValidAmountText(amountText)) {
+      editDraft.amountError = "Controleer het bedrag.";
+      return;
+    }
+
+    entry.party = editDraft.party.trim();
+    entry.description = editDraft.description.trim() || "Nieuwe regel";
+    entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
+    editingEntryId = null;
+    editDraft = emptyDraft();
+  }
+
+  function cancelEdit(): void {
+    editingEntryId = null;
+    editDraft = emptyDraft();
+  }
+
   function maybeHandleDraftKey(event: KeyboardEvent, month: BudgetMonth, section: Section, subcategoryId: string): void {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -240,6 +284,18 @@
     if (event.key === "Escape") {
       event.preventDefault();
       resetDraft(month.month, section, subcategoryId);
+    }
+  }
+
+  function maybeHandleEditKey(event: KeyboardEvent, entry: Entry): void {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveEdit(entry);
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEdit();
     }
   }
 
@@ -400,7 +456,7 @@
           <span>Partij</span>
           <span>Omschrijving</span>
           <span>Bedrag</span>
-          <span>Nota</span>
+          <span>Bewerk</span>
         </div>
 
         {#each sections as section}
@@ -476,23 +532,105 @@
 
               {#if groupedEntries.length > 0}
                 {#each groupedEntries as entry}
-                  <div class="entry-row">
-                    <span>{entry.party || "-"}</span>
-                    <span>{entry.description}</span>
-                    <strong>{formatDecimalCents(entry.amountCents)}</strong>
-                    <button type="button" aria-label="Nota"><MessageCircle size={15} /></button>
-                  </div>
+                  {#if editingEntryId === entry.id}
+                    <div
+                      class:has-error={Boolean(editDraft.amountError)}
+                      class="entry-row edit-row"
+                      data-edit-entry={entry.id}
+                      data-testid={`edit-${entry.id}`}
+                      onfocusin={() => activateMonthForInput(month.month)}
+                    >
+                      <input
+                        aria-label={`Partij bewerken voor ${entry.description}`}
+                        bind:value={editDraft.party}
+                        onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                      />
+                      <input
+                        aria-label={`Omschrijving bewerken voor ${entry.description}`}
+                        bind:value={editDraft.description}
+                        onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                      />
+                      <label class="edit-amount">
+                        <input
+                          aria-describedby={editDraft.amountError ? `edit-error-${entry.id}` : undefined}
+                          aria-invalid={Boolean(editDraft.amountError)}
+                          aria-label={`Bedrag bewerken voor ${entry.description}`}
+                          bind:value={editDraft.amountText}
+                          inputmode="decimal"
+                          oninput={() => clearAmountError(editDraft)}
+                          onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                        />
+                        {#if editDraft.amountError}
+                          <small id={`edit-error-${entry.id}`} class="field-error">{editDraft.amountError}</small>
+                        {/if}
+                      </label>
+                      <span class="row-actions">
+                        <button class="save-row" type="button" aria-label="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                        <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
+                      </span>
+                    </div>
+                  {:else}
+                    <div class="entry-row" data-entry-row={entry.id}>
+                      <span>{entry.party || "-"}</span>
+                      <span>{entry.description}</span>
+                      <strong>{formatDecimalCents(entry.amountCents)}</strong>
+                      <span class="row-actions">
+                        <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                      </span>
+                    </div>
+                  {/if}
                 {/each}
               {/if}
             {/each}
 
             {#each uncategorizedEntries(month, section) as entry}
-              <div class="entry-row">
-                <span>{entry.party || "-"}</span>
-                <span>{entry.description}</span>
-                <strong>{formatDecimalCents(entry.amountCents)}</strong>
-                <button type="button" aria-label="Nota"><MessageCircle size={15} /></button>
-              </div>
+              {#if editingEntryId === entry.id}
+                <div
+                  class:has-error={Boolean(editDraft.amountError)}
+                  class="entry-row edit-row"
+                  data-edit-entry={entry.id}
+                  data-testid={`edit-${entry.id}`}
+                  onfocusin={() => activateMonthForInput(month.month)}
+                >
+                  <input
+                    aria-label={`Partij bewerken voor ${entry.description}`}
+                    bind:value={editDraft.party}
+                    onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                  />
+                  <input
+                    aria-label={`Omschrijving bewerken voor ${entry.description}`}
+                    bind:value={editDraft.description}
+                    onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                  />
+                  <label class="edit-amount">
+                    <input
+                      aria-describedby={editDraft.amountError ? `edit-error-${entry.id}` : undefined}
+                      aria-invalid={Boolean(editDraft.amountError)}
+                      aria-label={`Bedrag bewerken voor ${entry.description}`}
+                      bind:value={editDraft.amountText}
+                      inputmode="decimal"
+                      oninput={() => clearAmountError(editDraft)}
+                      onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                    />
+                    {#if editDraft.amountError}
+                      <small id={`edit-error-${entry.id}`} class="field-error">{editDraft.amountError}</small>
+                    {/if}
+                  </label>
+                  <span class="row-actions">
+                    <button class="save-row" type="button" aria-label="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                    <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
+                  </span>
+                </div>
+              {:else}
+                <div class="entry-row" data-entry-row={entry.id}>
+                  <span>{entry.party || "-"}</span>
+                  <span>{entry.description}</span>
+                  <strong>{formatDecimalCents(entry.amountCents)}</strong>
+                  <span class="row-actions">
+                    <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                  </span>
+                </div>
+              {/if}
             {/each}
           </section>
         {/each}

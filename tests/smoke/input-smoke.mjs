@@ -104,12 +104,20 @@ try {
   await expectVisibleText(page, "Pensioenfonds rooktest");
   await expectVisibleText(page, "Inkomen met partij rooktest");
   await expectVisibleText(page, "123,45");
+  await editIncomeRow(page);
+  await expectVisibleText(page, "Pensioenfonds aangepast");
+  await expectVisibleText(page, "Inkomen aangepast rooktest");
+  await expectVisibleText(page, "124,56");
+  await expectHiddenText(page, "Inkomen met partij rooktest");
+  await cancelExpenseEdit(page);
+  await expectVisibleText(page, "Test uitgave rooktest");
+  await expectHiddenText(page, "Niet bewaren rooktest");
 
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectVisibleText(page, "Klik weg rooktest");
-  await expectVisibleText(page, "Pensioenfonds rooktest");
-  await expectVisibleText(page, "Inkomen met partij rooktest");
+  await expectVisibleText(page, "Pensioenfonds aangepast");
+  await expectVisibleText(page, "Inkomen aangepast rooktest");
   await expectDraftPanelsContained(page, "na verversen");
 
   if (runtimeErrors.length > 0) {
@@ -184,6 +192,25 @@ async function fillIncomeWithParty(page) {
   await amountInput.press("Enter");
 }
 
+async function editIncomeRow(page) {
+  await page.getByLabel("Regel bewerken: Inkomen met partij rooktest").click();
+  const editRow = page.locator('[data-testid^="edit-demo-9-inkomsten-"]');
+  await expectEditRowsContained(page, "inkomstenregel bewerken");
+  await captureScreenshot(page, "04-edit-income-row.png");
+  await editRow.locator('input[aria-label^="Partij bewerken"]').fill("Pensioenfonds aangepast");
+  await editRow.locator('input[aria-label^="Omschrijving bewerken"]').fill("Inkomen aangepast rooktest");
+  await editRow.locator('input[aria-label^="Bedrag bewerken"]').fill("124,56");
+  await editRow.getByLabel("Wijziging bewaren").click();
+}
+
+async function cancelExpenseEdit(page) {
+  await page.getByLabel("Regel bewerken: Test uitgave rooktest").click();
+  const editRow = page.locator('[data-testid^="edit-demo-9-vaste_kosten-"]');
+  await expectEditRowsContained(page, "uitgaveregel bewerken");
+  await editRow.locator('input[aria-label^="Omschrijving bewerken"]').fill("Niet bewaren rooktest");
+  await editRow.locator('input[aria-label^="Omschrijving bewerken"]').press("Escape");
+}
+
 async function expectIncomeDraftTabOrder(page, monthNumber) {
   const draftSelector = `[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"]`;
   await page.locator(`${draftSelector} input[aria-label^="Partij"]`).focus();
@@ -249,6 +276,40 @@ async function expectDraftPanelsContained(page, label) {
 
   if (issues.length > 0) {
     throw new Error(`Visuele invoercontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+}
+
+async function expectEditRowsContained(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    return Array.from(document.querySelectorAll(".edit-row")).flatMap((row, index) => {
+      const card = row.closest(".month-card");
+      if (!card) return [`Bewerkrij ${index + 1}: geen maandkaart gevonden.`];
+
+      const rowRect = row.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const rowIssues = [];
+
+      if (row.scrollWidth > row.clientWidth + tolerance) {
+        rowIssues.push(`Bewerkrij ${index + 1}: inhoud is breder dan de rij.`);
+      }
+      if (rowRect.left < cardRect.left - tolerance || rowRect.right > cardRect.right + tolerance) {
+        rowIssues.push(`Bewerkrij ${index + 1}: rij valt buiten de maandkaart.`);
+      }
+
+      for (const child of Array.from(row.children)) {
+        const childRect = child.getBoundingClientRect();
+        if (childRect.left < rowRect.left - tolerance || childRect.right > rowRect.right + tolerance) {
+          rowIssues.push(`Bewerkrij ${index + 1}: veld of knop valt buiten de rij.`);
+        }
+      }
+
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Visuele bewerkcontrole faalde (${label}):\n${issues.join("\n")}`);
   }
 }
 
