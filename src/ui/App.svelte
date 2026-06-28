@@ -64,6 +64,7 @@
   }
 
   type AppMode = "demo" | "production";
+  type AppView = "year" | "edit" | "settings" | "safety" | "history";
   type NoteTarget =
     | { kind: "draft"; monthNumber: number; section: Section; subcategoryId: string; title: string }
     | { kind: "edit"; entryId: string; title: string }
@@ -78,8 +79,8 @@
 
   let book = $state(initialBook);
   let appMode = $state<AppMode>("demo");
+  let activeView = $state<AppView>("year");
   let activeMonth = $state(1);
-  let showSettings = $state(false);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
   let expandedDraftKey = $state<string | null>(null);
@@ -648,12 +649,18 @@
     </button>
 
     <nav class="toolbar" aria-label="Hoofdnavigatie">
-      <button class="tool active" type="button" title="Jaaroverzicht" data-tooltip="Jaaroverzicht"><CalendarDays size={18} /><span class="tool-label">Jaar</span></button>
-      <button class="tool" type="button" title="Bewerken" data-tooltip="Bewerken"><RotateCcw size={18} /><span class="tool-label">Bewerken</span></button>
-      <button class:active={showSettings} class="tool" type="button" title="Instellingen" data-tooltip="Instellingen" onclick={() => (showSettings = !showSettings)}><Settings size={18} /><span class="tool-label">Instellingen</span></button>
-      <button class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid"><Shield size={18} /><span class="tool-label">Veiligheid</span></button>
-      <button class="tool" type="button" title="Historiek" data-tooltip="Historiek"><History size={18} /><span class="tool-label">Historiek</span></button>
+      <button class:active={activeView === "year"} class="tool" type="button" title="Jaaroverzicht" data-tooltip="Jaaroverzicht" onclick={() => (activeView = "year")}><CalendarDays size={16} /><span class="tool-label">Jaar</span></button>
+      <button class:active={activeView === "edit"} class="tool" type="button" title="Bewerken" data-tooltip="Bewerken" onclick={() => (activeView = "edit")}><RotateCcw size={16} /><span class="tool-label">Bewerken</span></button>
+      <button class:active={activeView === "settings"} class="tool" type="button" title="Instellingen" data-tooltip="Instellingen" onclick={() => (activeView = "settings")}><Settings size={16} /><span class="tool-label">Instellingen</span></button>
+      <button class:active={activeView === "safety"} class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid" onclick={() => (activeView = "safety")}><Shield size={16} /><span class="tool-label">Veiligheid</span></button>
+      <button class:active={activeView === "history"} class="tool" type="button" title="Historiek" data-tooltip="Historiek" onclick={() => (activeView = "history")}><History size={16} /><span class="tool-label">Historiek</span></button>
     </nav>
+
+    <section class="year-menu-card" aria-label="Jaaroverzicht">
+      <strong>{selectedYear.year}</strong>
+      <span>Start {formatMoneyCents(selectedYear.startBalanceCents)}</span>
+      <span>Eind {formatMoneyCents(totals.endCents)}</span>
+    </section>
 
     <div class="header-actions">
       <button class="icon-button" type="button" aria-label="Weergave wisselen" title="Weergave wisselen" data-tooltip="Weergave wisselen" onclick={() => (evening = !evening)}>
@@ -667,34 +674,41 @@
     </div>
   </header>
 
-  {#if showSettings}
-    <section class="settings-panel" aria-label="Instellingen">
-      <div>
-        <strong>Gegevensmodus</strong>
-        <span>{appMode === "demo" ? "Leermodus gebruikt de fictieve begroting 2026." : "Echte modus bewaart apart van de leermodus."}</span>
-      </div>
-      <div class="mode-switch" aria-label="Gegevensmodus">
-        <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
-        <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
-      </div>
+  {#if activeView !== "year"}
+    <section class="menu-page" aria-label={activeView === "settings" ? "Instellingen" : "Menu"}>
+      {#if activeView === "settings"}
+        <header>
+          <h2>Instellingen</h2>
+          <p>Appgedrag en gegevensmodus.</p>
+        </header>
+        <div class="settings-card">
+          <div>
+            <strong>Gegevensmodus</strong>
+            <span>{appMode === "demo" ? "Leermodus gebruikt de fictieve begroting 2026." : "Echte modus bewaart apart van de leermodus."}</span>
+          </div>
+          <div class="mode-switch" aria-label="Gegevensmodus">
+            <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
+            <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+          </div>
+        </div>
+      {:else if activeView === "edit"}
+        <header>
+          <h2>Bewerken</h2>
+          <p>Regels, categorieen en terugkerende posten krijgen hier hun eigen plaats.</p>
+        </header>
+      {:else if activeView === "safety"}
+        <header>
+          <h2>Veiligheid</h2>
+          <p>Back-ups, herstel en controle komen hier zonder de jaarweergave te verstoren.</p>
+        </header>
+      {:else}
+        <header>
+          <h2>Historiek</h2>
+          <p>Wijzigingen en eerdere jaren krijgen hier een rustig overzicht.</p>
+        </header>
+      {/if}
     </section>
-  {/if}
-
-  <section class="year-strip" aria-label="Jaaroverzicht">
-    <div class="year-pill active">{selectedYear.year}</div>
-    <div class="year-stat">
-      <span>Startsaldo</span>
-      <strong>{formatMoneyCents(selectedYear.startBalanceCents)}</strong>
-    </div>
-    <div class="year-stat">
-      <span>Totaal inkomsten</span>
-      <strong>{formatMoneyCents(totals.incomeCents)}</strong>
-    </div>
-    <div class="year-stat">
-      <span>Totaal uitgaven</span>
-      <strong>{formatMoneyCents(totals.outCents)}</strong>
-    </div>
-  </section>
+  {:else}
 
   <section class="month-tabs" aria-label="Maanden" data-testid="month-tabs">
     {#each selectedYear.months as month}
@@ -1076,6 +1090,7 @@
       <strong>Terug naar begin</strong>
     </button>
   </section>
+  {/if}
 
   {#if notePopup}
     <div class="note-overlay" role="presentation">

@@ -44,6 +44,7 @@ try {
   await expectLearningSampleData(page);
   await captureScreenshot(page, "01-initial-board.png");
   await expectCompactTopUi(page);
+  await expectMenuPagesDoNotCompressBoard(page);
   await expectBrandVisualIdentity(page);
   await expectTaskbarTime(page);
   await expectCurrentMonthIndicator(page);
@@ -842,13 +843,19 @@ async function expectCompactTopUi(page) {
     const firstCard = document.querySelector(".month-card");
     const monthTabs = document.querySelector('[data-testid="month-tabs"]');
     const primaryAction = document.querySelector(".primary-action");
+    const yearMenuCard = document.querySelector(".year-menu-card");
     if (!(firstCard instanceof HTMLElement) || !(monthTabs instanceof HTMLElement)) return "Maandkaart of maandbalk ontbreekt.";
     if (!(primaryAction instanceof HTMLElement)) return "Overzichtknop ontbreekt.";
+    if (!(yearMenuCard instanceof HTMLElement)) return "Jaarkaart in het menu ontbreekt.";
+    if (document.querySelector(".year-strip")) return "Oude jaarstatistiekrij staat nog in de hoofdinterface.";
+    if (!yearMenuCard.textContent?.includes("2026") || !yearMenuCard.textContent?.includes("Start") || !yearMenuCard.textContent?.includes("Eind")) {
+      return "Jaarkaart toont jaar, startsaldo en eindinzicht niet compact.";
+    }
 
     const firstCardTop = firstCard.getBoundingClientRect().top;
     const tabsBottom = monthTabs.getBoundingClientRect().bottom;
-    if (tabsBottom > 260) return `Maandbalk staat te laag (${Math.round(tabsBottom)}px).`;
-    if (firstCardTop > 330) return `Maandkaarten beginnen te laag (${Math.round(firstCardTop)}px).`;
+    if (tabsBottom > 150) return `Maandbalk staat te laag (${Math.round(tabsBottom)}px).`;
+    if (firstCardTop > 230) return `Maandkaarten beginnen te laag (${Math.round(firstCardTop)}px).`;
     if (document.documentElement.scrollWidth > window.innerWidth + 1) return "Pagina heeft horizontale overloop in de topinterface.";
 
     const actionRect = primaryAction.getBoundingClientRect();
@@ -858,6 +865,28 @@ async function expectCompactTopUi(page) {
   });
 
   if (issue) throw new Error(`Compactheidscontrole faalde: ${issue}`);
+}
+
+async function expectMenuPagesDoNotCompressBoard(page) {
+  const issue = await page.evaluate(() => {
+    const board = document.querySelector(".board");
+    if (!(board instanceof HTMLElement)) return "Jaarweergave mist het maandwerkvlak.";
+    const boardHeight = board.getBoundingClientRect().height;
+    if (boardHeight < window.innerHeight * 0.68) return `Maandwerkvlak is te laag voor de jaarweergave (${Math.round(boardHeight)}px).`;
+    return "";
+  });
+  if (issue) throw new Error(`Menu-layoutcontrole faalde: ${issue}`);
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectVisibleText(page, "Instellingen");
+  await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
+  for (const label of ["Bewerken", "Veiligheid", "Historiek"]) {
+    await page.getByRole("button", { name: label }).click();
+    await expectVisibleText(page, label);
+    await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
+  }
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
 }
 
 async function expectNoPageHorizontalOverflow(page, label) {
@@ -1090,6 +1119,7 @@ async function expectModeSwitchSeparatesDemo(page) {
 
   await page.getByRole("button", { name: "Leren" }).click();
   await expectVisibleText(page, "Leermodus");
+  await page.getByRole("button", { name: "Jaar" }).click();
   await expectVisibleText(page, "Pensioendienst");
 
   const issue = await page.evaluate(({ demoKey, productionKey, modeKey }) => {
@@ -1102,6 +1132,8 @@ async function expectModeSwitchSeparatesDemo(page) {
   if (issue) throw new Error(`Moduscontrole faalde: ${issue}`);
 
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectVisibleText(page, "Gegevensmodus");
+  await page.getByRole("button", { name: "Jaar" }).click();
   await expectHiddenText(page, "Gegevensmodus");
 }
 
