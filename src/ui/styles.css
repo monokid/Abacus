@@ -412,6 +412,92 @@ h1 {
   opacity: 0.35;
 }
 
+.rule-editor {
+  display: grid;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.rule-editor-head,
+.rule-editor-row {
+  display: grid;
+  grid-template-columns: 34px minmax(118px, 0.9fr) minmax(130px, 1fr) minmax(110px, 0.95fr) minmax(150px, 1.3fr) 92px 96px;
+  align-items: center;
+  gap: 5px;
+  min-width: 900px;
+}
+
+.rule-editor-head {
+  color: #8f8268;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rule-editor-row {
+  border: 1px solid rgba(105, 87, 53, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 253, 247, 0.58);
+  padding: 5px;
+}
+
+.rule-editor-row.inactive-rule {
+  opacity: 0.62;
+}
+
+.rule-editor-row input,
+.rule-editor-row select {
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid rgba(105, 87, 53, 0.2);
+  border-radius: 7px;
+  background: rgba(255, 253, 247, 0.9);
+  padding: 0 8px;
+  font: inherit;
+}
+
+.rule-editor-row input[aria-label^="Bedrag"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-active-toggle {
+  display: grid;
+  place-items: center;
+}
+
+.rule-active-toggle input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: #355f40;
+}
+
+.rule-frequency {
+  color: #536047;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.new-rule-row {
+  border-style: dashed;
+  background: rgba(244, 240, 227, 0.48);
+}
+
+.new-rule-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 30px;
+  border: 1px solid rgba(67, 86, 54, 0.24);
+  border-radius: 7px;
+  color: #405538;
+  background: rgba(255, 253, 247, 0.78);
+  padding: 0;
+  cursor: pointer;
+}
+
 .mode-switch {
   gap: 2px;
   padding: 2px;
@@ -553,10 +639,19 @@ h1 {
 .evening .subcategory-editor-row input,
 .evening .subcategory-add-row input,
 .evening .subcategory-editor-row button,
-.evening .subcategory-add-row button {
+.evening .subcategory-add-row button,
+.evening .rule-editor-row,
+.evening .rule-editor-row input,
+.evening .rule-editor-row select,
+.evening .new-rule-row button {
   color: #f4ecd8;
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(219, 190, 118, 0.22);
+}
+
+.evening .rule-editor-head,
+.evening .rule-frequency {
+  color: #eadbb6;
 }
 
 .year-pill,

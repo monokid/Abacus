@@ -54,6 +54,7 @@ try {
   await expectBrandReturnsToCurrentMonth(page);
   await expectModeSwitchSeparatesDemo(page);
   await expectCategorySettingsManagement(page);
+  await expectRecurringRuleSettings(page);
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectDistinctSectionIcons(page);
@@ -1192,6 +1193,30 @@ async function expectCategorySettingsManagement(page) {
   await navigateToMonth(page, 6);
   await expectVisibleText(page, "Apotheek");
   await expectVisibleText(page, "Nieuwe zalf");
+}
+
+async function expectRecurringRuleSettings(page) {
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectVisibleText(page, "Regels");
+
+  await page.getByLabel("Subcategorie voor nieuwe regel").selectOption("sub-vast-wonen");
+  await page.getByLabel("Partij voor nieuwe regel").fill("Watermaatschappij");
+  await page.getByLabel("Omschrijving voor nieuwe regel").fill("Waterfilter rooktest");
+  await page.getByLabel("Bedrag voor nieuwe regel").fill("15,25");
+  await page.getByLabel("Maandelijkse regel toevoegen").click();
+  await expectVisibleText(page, "Waterfilter rooktest toegevoegd en toegepast");
+
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 1);
+  await expectVisibleText(page, "Waterfilter rooktest");
+  await expectVisibleText(page, "15,25");
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByLabel("Regel actief: Waterfilter rooktest").uncheck();
+  await expectVisibleText(page, "Regel toegepast op het jaar");
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 1);
+  await expectHiddenText(page, "Waterfilter rooktest");
 }
 
 async function expectTooltips(page) {

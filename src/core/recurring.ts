@@ -1,4 +1,4 @@
-import type { RecurringRule } from "./model";
+import type { Book, Entry, RecurringRule } from "./model";
 
 const MONTH_NAMES = [
   "januari",
@@ -44,6 +44,31 @@ export function expandTemplate(template: string, isoDate: string): string {
     .replaceAll("{weekdag}", weekday ?? "");
 }
 
+export function syncRecurringEntriesForBook(book: Book): void {
+  for (const year of book.years) {
+    syncRecurringEntriesForYear(book, year.year);
+  }
+}
+
+export function syncRecurringEntriesForYear(book: Book, targetYear: number): void {
+  const year = book.years.find((item) => item.year === targetYear);
+  if (!year) return;
+
+  const rulePrefixes = book.recurringRules.map((rule) => `${rule.id}-`);
+  for (const month of year.months) {
+    month.entries = month.entries.filter((entry) => !rulePrefixes.some((prefix) => entry.id.startsWith(prefix)));
+  }
+
+  book.recurringRules.forEach((rule, ruleIndex) => {
+    for (const month of year.months) {
+      for (const date of datesFor(rule, year.year, month.month)) {
+        month.entries.push(entryFromRule(rule, date, ruleIndex));
+      }
+      month.entries.sort((left, right) => left.createdAt - right.createdAt);
+    }
+  });
+}
+
 function datesForOneMonth(rule: RecurringRule, year: number, month: number): string[] {
   switch (rule.frequency) {
     case "monthly":
@@ -71,6 +96,23 @@ function datesFromPattern(pattern: string, year: number, month: number): string[
     dates.push(isoDate(year, month, day));
   }
   return dates;
+}
+
+function entryFromRule(rule: RecurringRule, date: string, ruleIndex: number): Entry {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  return {
+    id: `${rule.id}-${date}`,
+    section: rule.section,
+    subcategoryId: rule.subcategoryId,
+    date,
+    party: rule.party,
+    description: expandTemplate(rule.description, date),
+    amountCents: rule.amountCents,
+    comment: "",
+    createdAt: Date.UTC(year, month - 1, day, 0, 0, ruleIndex),
+  };
 }
 
 function weekdaysInMonth(pattern: string, year: number, month: number): string[] {

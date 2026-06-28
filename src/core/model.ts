@@ -56,6 +56,12 @@ export interface RecurringRule {
   pattern: string;
 }
 
+export type RecurringRuleInput = Pick<
+  RecurringRule,
+  "section" | "subcategoryId" | "party" | "description" | "amountCents" | "startYear" | "startMonth" | "endYear" | "endMonth" | "frequency" | "pattern"
+> &
+  Partial<Pick<RecurringRule, "active" | "maxCount">>;
+
 export interface RecurringSkip {
   ruleId: string;
   date: string;
@@ -206,6 +212,21 @@ export function subcategoryUsage(book: Book, subcategoryId: string): Subcategory
   return { entries, recurringRules };
 }
 
+export function addRecurringRule(book: Book, input: RecurringRuleInput, idSeed = Date.now()): RecurringRule {
+  const rule = normalizeRecurringRuleInput(book, input);
+  rule.id = uniqueRecurringRuleId(book, `rule-${slugify(rule.description) || "nieuw"}`, idSeed);
+  book.recurringRules.push(rule);
+  return rule;
+}
+
+export function updateRecurringRule(book: Book, ruleId: string, patch: Partial<RecurringRuleInput>): RecurringRule {
+  const existing = book.recurringRules.find((rule) => rule.id === ruleId);
+  if (!existing) throw new Error("Regel niet gevonden.");
+  const next = normalizeRecurringRuleInput(book, { ...existing, ...patch });
+  Object.assign(existing, { ...next, id: existing.id });
+  return existing;
+}
+
 export function validateBook(book: Book): string[] {
   const issues: string[] = [];
   const validFrequencies = new Set<RecurringFrequency>(["monthly", "quarterly", "yearly", "months", "dates", "weekday"]);
@@ -346,6 +367,56 @@ function uniqueSubcategoryId(book: Book, baseId: string, idSeed: number): string
     candidate = `${baseId}-${suffix}`;
   }
   return candidate;
+}
+
+function uniqueRecurringRuleId(book: Book, baseId: string, idSeed: number): string {
+  const existingIds = new Set(book.recurringRules.map((rule) => rule.id));
+  if (!existingIds.has(baseId)) return baseId;
+  let suffix = Math.abs(Math.trunc(idSeed));
+  let candidate = `${baseId}-${suffix}`;
+  while (existingIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseId}-${suffix}`;
+  }
+  return candidate;
+}
+
+function normalizeRecurringRuleInput(book: Book, input: RecurringRuleInput): RecurringRule {
+  if (!isSection(input.section)) throw new Error("Hoofdgroep is ongeldig.");
+  const subcategoryId = input.subcategoryId || null;
+  if (subcategoryId) {
+    const subcategoryItem = book.subcategories.find((item) => item.id === subcategoryId);
+    if (!subcategoryItem || subcategoryItem.section !== input.section) throw new Error("Subcategorie past niet bij deze hoofdgroep.");
+  }
+
+  const description = input.description.trim().replace(/\s+/g, " ");
+  if (!description) throw new Error("Regel heeft een omschrijving nodig.");
+  if (input.amountCents !== null && !Number.isInteger(input.amountCents)) throw new Error("Bedrag moet een geheel aantal cent zijn.");
+  if (!Number.isInteger(input.startYear)) throw new Error("Startjaar is ongeldig.");
+  if (!Number.isInteger(input.startMonth) || input.startMonth < 1 || input.startMonth > 12) throw new Error("Startmaand is ongeldig.");
+  if ((input.endYear === null) !== (input.endMonth === null)) throw new Error("Einddatum is onvolledig.");
+  if (input.endYear !== null && !Number.isInteger(input.endYear)) throw new Error("Eindjaar is ongeldig.");
+  if (input.endMonth !== null && (!Number.isInteger(input.endMonth) || input.endMonth < 1 || input.endMonth > 12)) throw new Error("Eindmaand is ongeldig.");
+  if (input.maxCount !== undefined && input.maxCount !== null && (!Number.isInteger(input.maxCount) || input.maxCount < 1)) {
+    throw new Error("Maximum aantal is ongeldig.");
+  }
+
+  return {
+    id: "",
+    active: input.active ?? true,
+    section: input.section,
+    subcategoryId,
+    party: input.party.trim().replace(/\s+/g, " "),
+    description,
+    amountCents: input.amountCents,
+    startYear: input.startYear,
+    startMonth: input.startMonth,
+    endYear: input.endYear,
+    endMonth: input.endMonth,
+    maxCount: input.maxCount ?? null,
+    frequency: input.frequency,
+    pattern: input.pattern.trim(),
+  };
 }
 
 function slugify(value: string): string {

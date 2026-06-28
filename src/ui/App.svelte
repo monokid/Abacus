@@ -30,16 +30,19 @@
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
   import {
     addSubcategory as addBookSubcategory,
+    addRecurringRule as addBookRecurringRule,
     allSubcategoriesFor,
     createEmptyBook,
     moveSubcategory as moveBookSubcategory,
     renameSubcategory as renameBookSubcategory,
     subcategoryUsage,
+    updateRecurringRule as updateBookRecurringRule,
     validateBook,
   } from "../core/model";
+  import { syncRecurringEntriesForBook } from "../core/recurring";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
-  import type { Book, BudgetMonth, Entry, Subcategory } from "../core/model";
+  import type { Book, BudgetMonth, Entry, RecurringRule, Subcategory } from "../core/model";
 
   import januariImage from "../../assets/months/januari.png";
   import februariImage from "../../assets/months/februari.png";
@@ -71,6 +74,14 @@
     accentMist: string;
     sun: string;
     sunSoft: string;
+  }
+
+  interface RecurringRuleDraft {
+    section: Section;
+    subcategoryId: string | null;
+    party: string;
+    description: string;
+    amountText: string;
   }
 
   type AppMode = "demo" | "production";
@@ -120,6 +131,8 @@
     variabele_kosten: "",
   });
   let subcategoryMessage = $state("");
+  let recurringRuleMessage = $state("");
+  let newRuleDraft = $state<RecurringRuleDraft>(emptyRecurringRuleDraft("vaste_kosten"));
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -368,6 +381,104 @@
 
   function statusCenterLabel(): string {
     return activeView === "year" ? `${monthName(activeMonth)} geselecteerd` : viewLabels[activeView];
+  }
+
+  function emptyRecurringRuleDraft(section: Section): RecurringRuleDraft {
+    return {
+      section,
+      subcategoryId: firstSubcategoryId(section),
+      party: "",
+      description: "",
+      amountText: "",
+    };
+  }
+
+  function firstSubcategoryId(section: Section): string | null {
+    return subcategoriesFor(section)[0]?.id ?? null;
+  }
+
+  function ruleFrequencyLabel(rule: RecurringRule): string {
+    const labels: Record<RecurringRule["frequency"], string> = {
+      monthly: "Maandelijks",
+      quarterly: "Driemaandelijks",
+      yearly: "Jaarlijks",
+      months: "Maanden",
+      dates: "Datums",
+      weekday: "Weekdag",
+    };
+    return labels[rule.frequency];
+  }
+
+  function ruleAmountText(rule: RecurringRule): string {
+    return formatDecimalCents(rule.amountCents);
+  }
+
+  function inputValue(event: Event): string {
+    const target = event.currentTarget;
+    return target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : "";
+  }
+
+  function checkboxValue(event: Event): boolean {
+    const target = event.currentTarget;
+    return target instanceof HTMLInputElement ? target.checked : false;
+  }
+
+  function sectionFromValue(value: string): Section {
+    return sections.includes(value as Section) ? (value as Section) : "vaste_kosten";
+  }
+
+  function centsFromOptionalText(value: string): number | null {
+    return value.trim() ? parseMoneyToCents(value) : null;
+  }
+
+  function applyRecurringRuleChange(ruleId: string, patch: Partial<RecurringRule>): void {
+    try {
+      updateBookRecurringRule(book, ruleId, patch);
+      syncRecurringEntriesForBook(book);
+      drafts = createDrafts(book);
+      recurringRuleMessage = "Regel toegepast op het jaar.";
+    } catch (error) {
+      recurringRuleMessage = error instanceof Error ? error.message : "Regel kon niet worden bewaard.";
+    }
+  }
+
+  function updateRuleSection(rule: RecurringRule, section: Section): void {
+    applyRecurringRuleChange(rule.id, {
+      section,
+      subcategoryId: firstSubcategoryId(section),
+    });
+  }
+
+  function addMonthlyRule(): void {
+    try {
+      const rule = addBookRecurringRule(book, {
+        active: true,
+        section: newRuleDraft.section,
+        subcategoryId: newRuleDraft.subcategoryId,
+        party: newRuleDraft.party,
+        description: newRuleDraft.description,
+        amountCents: centsFromOptionalText(newRuleDraft.amountText),
+        startYear: selectedYear.year,
+        startMonth: 1,
+        endYear: selectedYear.year,
+        endMonth: 12,
+        maxCount: null,
+        frequency: "monthly",
+        pattern: "",
+      });
+      syncRecurringEntriesForBook(book);
+      drafts = createDrafts(book);
+      recurringRuleMessage = `${rule.description} toegevoegd en toegepast.`;
+      newRuleDraft = emptyRecurringRuleDraft(newRuleDraft.section);
+    } catch (error) {
+      recurringRuleMessage = error instanceof Error ? error.message : "Regel kon niet worden toegevoegd.";
+    }
+  }
+
+  function maybeAddMonthlyRuleFromKey(event: KeyboardEvent): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addMonthlyRule();
   }
 
   function entriesFor(month: BudgetMonth, section: Section, subcategoryId: string | null): Entry[] {
@@ -833,6 +944,106 @@
                 </div>
               </article>
             {/each}
+          </div>
+        </section>
+        <section class="settings-block" aria-label="Regels beheren">
+          <header>
+            <div>
+              <h3>Regels</h3>
+              <p>Beheer terugkerende posten. Aanpassingen worden meteen opnieuw toegepast op het jaar.</p>
+            </div>
+            {#if recurringRuleMessage}
+              <span class="settings-message" role="status">{recurringRuleMessage}</span>
+            {/if}
+          </header>
+
+          <div class="rule-editor">
+            <div class="rule-editor-head" aria-hidden="true">
+              <span>Aan</span>
+              <span>Hoofdgroep</span>
+              <span>Subcategorie</span>
+              <span>Partij</span>
+              <span>Omschrijving</span>
+              <span>Bedrag</span>
+              <span>Herhaling</span>
+            </div>
+
+            {#each book.recurringRules as rule}
+              <div class:inactive-rule={!rule.active} class="rule-editor-row">
+                <label class="rule-active-toggle">
+                  <input
+                    aria-label={`Regel actief: ${rule.description}`}
+                    checked={rule.active}
+                    type="checkbox"
+                    onchange={(event) => applyRecurringRuleChange(rule.id, { active: checkboxValue(event) })}
+                  />
+                </label>
+                <select aria-label={`Hoofdgroep voor regel ${rule.description}`} value={rule.section} onchange={(event) => updateRuleSection(rule, sectionFromValue(inputValue(event)))}>
+                  {#each sections as section}
+                    <option value={section}>{SECTION_LABELS[section]}</option>
+                  {/each}
+                </select>
+                <select
+                  aria-label={`Subcategorie voor regel ${rule.description}`}
+                  value={rule.subcategoryId ?? ""}
+                  onchange={(event) => applyRecurringRuleChange(rule.id, { subcategoryId: inputValue(event) || null })}
+                >
+                  <option value="">Geen subcategorie</option>
+                  {#each subcategoriesFor(rule.section) as subcategory}
+                    <option value={subcategory.id}>{subcategory.name}</option>
+                  {/each}
+                </select>
+                <input
+                  aria-label={`Partij voor regel ${rule.description}`}
+                  value={rule.party}
+                  onblur={(event) => applyRecurringRuleChange(rule.id, { party: inputValue(event) })}
+                />
+                <input
+                  aria-label={`Omschrijving voor regel ${rule.description}`}
+                  value={rule.description}
+                  onblur={(event) => applyRecurringRuleChange(rule.id, { description: inputValue(event) })}
+                />
+                <input
+                  aria-label={`Bedrag voor regel ${rule.description}`}
+                  inputmode="decimal"
+                  value={ruleAmountText(rule)}
+                  onblur={(event) => applyRecurringRuleChange(rule.id, { amountCents: centsFromOptionalText(inputValue(event)) })}
+                />
+                <span class="rule-frequency">{ruleFrequencyLabel(rule)}</span>
+              </div>
+            {/each}
+
+            <div class="rule-editor-row new-rule-row">
+              <span aria-hidden="true"></span>
+              <select
+                aria-label="Hoofdgroep voor nieuwe regel"
+                value={newRuleDraft.section}
+                onchange={(event) => {
+                  const section = sectionFromValue(inputValue(event));
+                  newRuleDraft = { ...newRuleDraft, section, subcategoryId: firstSubcategoryId(section) };
+                }}
+              >
+                {#each sections as section}
+                  <option value={section}>{SECTION_LABELS[section]}</option>
+                {/each}
+              </select>
+              <select
+                aria-label="Subcategorie voor nieuwe regel"
+                value={newRuleDraft.subcategoryId ?? ""}
+                onchange={(event) => (newRuleDraft = { ...newRuleDraft, subcategoryId: inputValue(event) || null })}
+              >
+                <option value="">Geen subcategorie</option>
+                {#each subcategoriesFor(newRuleDraft.section) as subcategory}
+                  <option value={subcategory.id}>{subcategory.name}</option>
+                {/each}
+              </select>
+              <input aria-label="Partij voor nieuwe regel" bind:value={newRuleDraft.party} placeholder="Partij" onkeydown={maybeAddMonthlyRuleFromKey} />
+              <input aria-label="Omschrijving voor nieuwe regel" bind:value={newRuleDraft.description} placeholder="Omschrijving" onkeydown={maybeAddMonthlyRuleFromKey} />
+              <input aria-label="Bedrag voor nieuwe regel" bind:value={newRuleDraft.amountText} inputmode="decimal" placeholder="0,00" onkeydown={maybeAddMonthlyRuleFromKey} />
+              <button type="button" aria-label="Maandelijkse regel toevoegen" title="Regel toevoegen" data-tooltip="Regel toevoegen" onclick={addMonthlyRule}>
+                <Plus size={16} />
+              </button>
+            </div>
           </div>
         </section>
       {:else if activeView === "edit"}

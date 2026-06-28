@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { addSubcategory, createEmptyBook, moveSubcategory, renameSubcategory, subcategoriesFor, subcategoryUsage, validateBook } from "../../src/core/model";
+import {
+  addRecurringRule,
+  addSubcategory,
+  createEmptyBook,
+  moveSubcategory,
+  renameSubcategory,
+  subcategoriesFor,
+  subcategoryUsage,
+  updateRecurringRule,
+  validateBook,
+} from "../../src/core/model";
 
 describe("model", () => {
   it("creates one complete year with 12 months", () => {
@@ -63,6 +73,31 @@ describe("model", () => {
 
     expect(() => addSubcategory(book, "inkomsten", "Pensioen")).toThrow("Deze subcategorie bestaat al in deze hoofdgroep.");
     expect(() => renameSubcategory(book, "sub-ink-familie", "Terugbetalingen")).toThrow("Deze subcategorie bestaat al in deze hoofdgroep.");
+  });
+
+  it("adds and updates recurring rules with valid subcategory scope", () => {
+    const book = createEmptyBook(2026);
+
+    const rule = addRecurringRule(book, {
+      section: "vaste_kosten",
+      subcategoryId: "sub-vast-wonen",
+      party: "Woonfonds",
+      description: "Huur",
+      amountCents: 820_00,
+      startYear: 2026,
+      startMonth: 1,
+      endYear: 2026,
+      endMonth: 12,
+      maxCount: null,
+      frequency: "monthly",
+      pattern: "",
+    }, 10);
+
+    expect(rule.id).toBe("rule-huur");
+    updateRecurringRule(book, rule.id, { description: "Huur woning", amountCents: 830_00 });
+    expect(book.recurringRules[0]?.description).toBe("Huur woning");
+    expect(book.recurringRules[0]?.amountCents).toBe(830_00);
+    expect(validateBook(book)).toEqual([]);
   });
 
   it("counts subcategory usage across entries and recurring rules", () => {
