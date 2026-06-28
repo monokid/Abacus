@@ -27,7 +27,7 @@ button {
 
 main {
   min-height: 100vh;
-  padding-bottom: 62px;
+  padding-bottom: 48px;
   background:
     linear-gradient(180deg, rgba(251, 247, 237, 0.96), rgba(236, 228, 211, 0.96)),
     #efe8d9;
@@ -73,24 +73,24 @@ main.evening {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  border: 2px solid #b9934d;
-  border-radius: 50%;
+  width: 52px;
+  height: 48px;
+  border: 0;
+  border-radius: 0;
   color: #31583d;
-  background: #f6efd9;
-  overflow: hidden;
+  background: transparent;
+  overflow: visible;
 }
 
 .brand-mark img {
-  width: 50px;
-  height: 50px;
+  width: 52px;
+  height: 48px;
   object-fit: contain;
 }
 
 .evening .brand-mark {
   color: #ead395;
-  background: #1f3d31;
+  background: transparent;
 }
 
 h1,
@@ -386,26 +386,39 @@ h1 {
 
 .month-tabs button.current-month::before {
   position: absolute;
-  top: 4px;
-  left: 12px;
-  right: 12px;
-  height: 2px;
+  top: 5px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--month-accent) 64%, #2f6a3c);
+  background: radial-gradient(circle, var(--month-sun) 0 35%, color-mix(in srgb, var(--month-sun) 72%, #fff8d0) 36% 58%, transparent 60%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--month-sun) 55%, transparent);
   content: "";
-  opacity: 0.82;
+  opacity: 0.95;
 }
 
-.month-tabs button span {
+.month-tabs button .month-number {
   grid-area: num;
   display: grid;
   place-items: center;
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--month-accent) 30%, #dcc38c);
+  background:
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--month-sun-soft) 84%, #fffdf7), var(--month-sun) 72%),
+    var(--month-sun);
   color: #3f321d;
+  box-shadow: inset 0 -1px 0 rgba(92, 65, 23, 0.18);
   font-weight: 800;
+}
+
+.month-tabs .current-sun {
+  position: absolute;
+  top: 8px;
+  right: 11px;
+  color: #fff6cf;
+  filter: drop-shadow(0 1px 1px rgba(82, 52, 11, 0.5));
+  pointer-events: none;
 }
 
 .month-tabs button strong {
@@ -433,11 +446,11 @@ h1 {
 
 .month-tabs button.active::after {
   position: absolute;
-  top: 5px;
-  right: 7px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  right: 10px;
+  bottom: 6px;
+  left: 10px;
+  height: 3px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--month-accent) 70%, #2f6a3c);
   content: "";
 }
@@ -454,6 +467,15 @@ h1 {
 
 .evening .month-tabs button em {
   color: #d6c386;
+}
+
+.evening .month-tabs button.current-month::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--month-sun) 86%, #f4e6b8) 0 35%, color-mix(in srgb, var(--month-sun) 56%, #22382d) 36% 58%, transparent 60%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--month-sun) 42%, rgba(255, 255, 255, 0.08));
+}
+
+.evening .month-tabs .current-sun {
+  color: #f6e6b4;
 }
 
 .board {
@@ -529,7 +551,7 @@ h1 {
   z-index: 3;
   height: 3px;
   border-radius: 0 0 999px 999px;
-  background: color-mix(in srgb, var(--month-accent) 62%, #2f6a3c);
+  background: linear-gradient(90deg, transparent, var(--month-sun), transparent);
   content: "";
 }
 
@@ -591,8 +613,17 @@ h1 {
 
 .month-title {
   grid-area: title;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
   align-self: center;
+}
+
+.current-card-sun {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--month-sun) 72%, #6b4417);
+  filter: drop-shadow(0 1px 2px rgba(94, 63, 21, 0.18));
 }
 
 .month-header h2 {
@@ -1168,21 +1199,36 @@ h1 {
 .month-footer {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 12px 14px 14px;
-  background: rgba(225, 217, 190, 0.36);
+  gap: 8px;
+  padding: 9px 12px 10px;
+  border-top: 1px solid rgba(112, 92, 58, 0.1);
+  background: rgba(232, 225, 203, 0.34);
 }
 
-.month-footer span {
+.month-footer-stat {
   display: grid;
-  gap: 3px;
-  font-size: 0.76rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid rgba(112, 92, 58, 0.11);
+  border-radius: 6px;
+  background: rgba(255, 253, 247, 0.42);
+}
+
+.month-footer-stat em {
   color: #6f654f;
+  font-size: 0.76rem;
+  font-style: normal;
 }
 
 .month-footer strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
   color: #2f6a3c;
-  font-size: 1rem;
+  font-size: 0.98rem;
 }
 
 .month-footer strong.negative {
@@ -1203,7 +1249,12 @@ h1 {
 }
 
 .evening .month-footer {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.evening .month-footer-stat {
+  border-color: rgba(219, 190, 118, 0.14);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .evening .carry-entry {
@@ -1218,7 +1269,7 @@ h1 {
 
 .evening .month-header span,
 .evening .grid-head,
-.evening .month-footer span,
+.evening .month-footer-stat em,
 .evening .field span {
   color: #d7c9a9;
 }
@@ -1334,9 +1385,9 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   margin: 0;
-  padding: 9px 24px;
+  padding: 6px 24px;
   border: 1px solid rgba(105, 87, 53, 0.22);
   border-right: 0;
   border-bottom: 0;
@@ -1345,19 +1396,42 @@ h1 {
   background: #fffdf7;
   box-shadow: 0 -8px 22px rgba(65, 51, 26, 0.12);
   color: #526144;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .status-bar span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-bar strong {
+  flex: 0 0 auto;
+  color: #43563a;
+  font-size: 0.84rem;
+}
+
+.status-mode {
+  flex: 1 1 220px;
+}
+
+.status-date {
+  flex: 1 1 230px;
+  justify-content: center;
 }
 
 .evening .status-bar {
   background: rgba(15, 31, 25, 0.94);
   border-color: rgba(219, 190, 118, 0.22);
   color: #eadbb6;
+}
+
+.evening .status-bar strong {
+  color: #f0e4c1;
 }
 
 @media (max-width: 640px) {
@@ -1389,9 +1463,18 @@ h1 {
     left: 0;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 12px;
-    padding: 7px 10px;
-    font-size: 0.82rem;
+    gap: 3px 10px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+  }
+
+  .status-mode {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .status-date {
+    flex-basis: auto;
   }
 }
 

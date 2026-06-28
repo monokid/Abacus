@@ -43,8 +43,11 @@ try {
   await expectVisibleText(page, "Jaarbegroting 2026");
   await captureScreenshot(page, "01-initial-board.png");
   await expectCompactTopUi(page);
+  await expectBrandVisualIdentity(page);
   await expectTaskbarTime(page);
   await expectCurrentMonthIndicator(page);
+  await expectSeasonalMonthBadges(page);
+  await expectMonthFooterSummaries(page, "eerste laadbeurt");
   await expectBrandReturnsToCurrentMonth(page);
   await expectModeSwitchSeparatesDemo(page);
   await expectTooltips(page);
@@ -303,6 +306,9 @@ async function auditResponsiveViewports(browser) {
     await navigateToMonth(page, viewport.month);
     await expectActiveMonthVisible(page, viewport.month);
     await expectActiveMonthTabProminent(page, viewport.month);
+    await expectCurrentMonthIndicator(page);
+    await expectSeasonalMonthBadges(page);
+    await expectMonthFooterSummaries(page, `${viewport.width}x${viewport.height}`);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
     await expectLedgerBreathingRoom(page, `${viewport.width}x${viewport.height}`);
@@ -325,6 +331,9 @@ async function auditDarkMode(browser) {
   await page.getByLabel("Weergave wisselen").click();
   await navigateToMonth(page, 9);
   await expectDarkModeMonthHeaders(page);
+  await expectCurrentMonthIndicator(page);
+  await expectSeasonalMonthBadges(page);
+  await expectMonthFooterSummaries(page, "donkere modus");
   await expectMonthHeaderLayout(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
@@ -604,6 +613,29 @@ async function expectFocusedElementContained(page, label) {
   if (issue) throw new Error(`Visuele focuscontrole faalde (${label}): ${issue}`);
 }
 
+async function expectBrandVisualIdentity(page) {
+  const issue = await page.evaluate(() => {
+    const mark = document.querySelector(".brand-mark");
+    const image = mark?.querySelector("img");
+    if (!(mark instanceof HTMLElement) || !(image instanceof HTMLImageElement)) return "Logo ontbreekt.";
+
+    const markStyle = getComputedStyle(mark);
+    const imageStyle = getComputedStyle(image);
+    const markRect = mark.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    const radius = Number.parseFloat(markStyle.borderRadius || "0");
+
+    if (radius > 4) return "Logo staat opnieuw in een rond kader.";
+    if (markStyle.overflow === "hidden") return "Logo wordt mogelijk afgesneden.";
+    if (imageStyle.objectFit !== "contain") return "Logo wordt niet volledig passend getoond.";
+    if (imageRect.width < 42 || imageRect.height < 38) return "Logo is te klein om als identiteit te werken.";
+    if (imageRect.left < markRect.left - 6 || imageRect.right > markRect.right + 6) return "Logo valt te ver buiten zijn plek.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Logocontrole faalde: ${issue}`);
+}
+
 async function navigateToMonth(page, monthNumber) {
   await page.locator(`[data-month-tab="${monthNumber}"]`).click();
   await page.waitForFunction(
@@ -843,13 +875,19 @@ async function expectTaskbarTime(page) {
   const issue = await page.evaluate(() => {
     const statusBar = document.querySelector(".status-bar");
     if (!(statusBar instanceof HTMLElement)) return "Statusbalk ontbreekt.";
-    if (!/\d{2}:\d{2}/.test(statusBar.textContent ?? "")) return "Statusbalk toont geen tijd.";
-    if (!/Leermodus|Productie/.test(statusBar.textContent ?? "")) return "Statusbalk toont geen modus.";
+    const text = statusBar.textContent ?? "";
+    if (!/\d{2}:\d{2}/.test(text)) return "Statusbalk toont geen tijd.";
+    if (!/Leermodus|Productie/.test(text)) return "Statusbalk toont geen modus.";
+    if (!/\b(maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag)\b/i.test(text)) return "Statusbalk toont geen lange weekdag.";
+    if (!/\b(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\b/i.test(text)) return "Statusbalk toont geen lange datum.";
+    if (/€/.test(text)) return "Statusbalk toont financiële statistieken.";
 
     const style = getComputedStyle(statusBar);
     if (style.position !== "fixed") return "Statusbalk is niet vast onderaan.";
     const statusRect = statusBar.getBoundingClientRect();
     if (statusRect.bottom > window.innerHeight + 1) return "Statusbalk valt buiten beeld.";
+    const maxHeight = window.innerWidth <= 640 ? 58 : 40;
+    if (statusRect.height > maxHeight) return `Statusbalk is te hoog (${Math.round(statusRect.height)}px).`;
     return "";
   });
 
@@ -863,14 +901,68 @@ async function expectCurrentMonthIndicator(page) {
     const currentCard = document.querySelector(".month-card.current-month");
     if (!(currentTab instanceof HTMLElement) || !(currentCard instanceof HTMLElement)) return "Huidige maand heeft geen indicator.";
 
+    const tabSun = currentTab.querySelector(".current-sun");
+    const cardSun = currentCard.querySelector(".current-card-sun");
+    if (!(tabSun instanceof SVGElement)) return "Huidige maand mist zonicoon in maandbalk.";
+    if (!(cardSun instanceof SVGElement)) return "Huidige maand mist zonicoon op maandkaart.";
+
     const tabLine = getComputedStyle(currentTab, "::before");
     const cardLine = getComputedStyle(currentCard, "::before");
     if (!tabLine.content || tabLine.content === "none") return "Huidige maand mist lijn in maandbalk.";
     if (!cardLine.content || cardLine.content === "none") return "Huidige maand mist lijn op kaart.";
+
+    const tabSunColor = getComputedStyle(tabSun).color;
+    const cardSunColor = getComputedStyle(cardSun).color;
+    if (averageBrightness(tabSunColor) < 70) return `Zonicoon in maandbalk is te donker (${tabSunColor}).`;
+    if (averageBrightness(cardSunColor) < 70) return `Zonicoon op kaart is te donker (${cardSunColor}).`;
     return "";
+
+    function averageBrightness(cssColor) {
+      const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return 255;
+      return (Number(match[1]) + Number(match[2]) + Number(match[3])) / 3;
+    }
   });
 
   if (issue) throw new Error(`Huidige-maandcontrole faalde: ${issue}`);
+}
+
+async function expectSeasonalMonthBadges(page) {
+  const issues = await page.evaluate(() => {
+    const visibleTabs = Array.from(document.querySelectorAll("[data-month-tab]")).filter((tab) => {
+      if (!(tab instanceof HTMLElement)) return false;
+      const rect = tab.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+
+    return visibleTabs.flatMap((tab, index) => {
+      if (!(tab instanceof HTMLElement)) return [];
+      const badge = tab.querySelector(".month-number");
+      if (!(badge instanceof HTMLElement)) return [`Maandtab ${index + 1}: zonbadge ontbreekt.`];
+
+      const tabStyle = getComputedStyle(tab);
+      const badgeStyle = getComputedStyle(badge);
+      const badgeRect = badge.getBoundingClientRect();
+      const badgeIssues = [];
+      if (!tabStyle.getPropertyValue("--month-sun").trim()) badgeIssues.push(`Maandtab ${index + 1}: mist zonkleur.`);
+      if (!badgeStyle.backgroundImage.includes("radial-gradient")) badgeIssues.push(`Maandtab ${index + 1}: zonbadge mist kleurschakering.`);
+      if (badgeRect.width < 26 || badgeRect.height < 26) badgeIssues.push(`Maandtab ${index + 1}: zonbadge is te klein.`);
+      if (averageBrightness(badgeStyle.backgroundColor) < 42 && !badgeStyle.backgroundImage.includes("gradient")) {
+        badgeIssues.push(`Maandtab ${index + 1}: zonbadge is te donker.`);
+      }
+      return badgeIssues;
+    });
+
+    function averageBrightness(cssColor) {
+      const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return 180;
+      return (Number(match[1]) + Number(match[2]) + Number(match[3])) / 3;
+    }
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Seizoensbadgecontrole faalde:\n${issues.join("\n")}`);
+  }
 }
 
 async function expectBrandReturnsToCurrentMonth(page) {
@@ -1228,6 +1320,61 @@ async function expectMonthHeaderLayout(page, label) {
 
   if (issues.length > 0) {
     throw new Error(`Visuele headercontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+}
+
+async function expectMonthFooterSummaries(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    const visibleCards = Array.from(document.querySelectorAll(".month-card")).filter((card) => {
+      if (!(card instanceof HTMLElement)) return false;
+      const rect = card.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+
+    return visibleCards.flatMap((card, index) => {
+      if (!(card instanceof HTMLElement)) return [];
+      const cardRect = card.getBoundingClientRect();
+      const footer = card.querySelector(".month-footer");
+      if (!(footer instanceof HTMLElement)) return [`Zichtbare maandkaart ${index + 1}: maandtotalen ontbreken.`];
+
+      const footerRect = footer.getBoundingClientRect();
+      const stats = Array.from(footer.querySelectorAll(".month-footer-stat"));
+      const cardIssues = [];
+      if (stats.length !== 2) cardIssues.push(`Zichtbare maandkaart ${index + 1}: maandtotalen hebben geen twee nette blokken.`);
+      if (footerRect.left < cardRect.left - tolerance || footerRect.right > cardRect.right + tolerance) {
+        cardIssues.push(`Zichtbare maandkaart ${index + 1}: maandtotalen vallen buiten de kaart.`);
+      }
+
+      for (const [statIndex, stat] of stats.entries()) {
+        if (!(stat instanceof HTMLElement)) continue;
+        const labelNode = stat.querySelector("em");
+        const valueNode = stat.querySelector("strong");
+        if (!(labelNode instanceof HTMLElement) || !(valueNode instanceof HTMLElement)) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: totaal ${statIndex + 1} mist label of bedrag.`);
+          continue;
+        }
+
+        const statRect = stat.getBoundingClientRect();
+        const labelRect = labelNode.getBoundingClientRect();
+        const valueRect = valueNode.getBoundingClientRect();
+        if (statRect.left < footerRect.left - tolerance || statRect.right > footerRect.right + tolerance) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: totaal ${statIndex + 1} valt buiten de totalenrij.`);
+        }
+        if (labelRect.left < statRect.left - tolerance || valueRect.right > statRect.right + tolerance) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: totaal ${statIndex + 1} heeft rommelige horizontale uitlijning.`);
+        }
+        if (valueRect.left < statRect.left || labelRect.right > statRect.right + 1) {
+          cardIssues.push(`Zichtbare maandkaart ${index + 1}: totaal ${statIndex + 1} tekst past niet netjes.`);
+        }
+      }
+
+      return cardIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Maandtotalencontrole faalde (${label}):\n${issues.join("\n")}`);
   }
 }
 

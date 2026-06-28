@@ -59,6 +59,8 @@
     accent: string;
     accentSoft: string;
     accentMist: string;
+    sun: string;
+    sunSoft: string;
   }
 
   type AppMode = "demo" | "production";
@@ -93,6 +95,7 @@
   let storageReady = $state(false);
   let saveStatus = $state("Voorbeeldgegevens");
   let currentClock = $state(formatClock(new Date()));
+  let currentDateLabel = $state(formatLongDate(new Date()));
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -103,18 +106,18 @@
   const totals = $derived(yearTotals(selectedYear));
   const currentMonthInSelectedYear = $derived(selectedYear.year === today.getFullYear() ? today.getMonth() + 1 : null);
   const months: MonthView[] = [
-    { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)" },
-    { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)" },
-    { name: "Maart", image: maartImage, accent: "#668344", accentSoft: "#e3ead4", accentMist: "rgba(227, 234, 212, 0.7)" },
-    { name: "April", image: aprilImage, accent: "#78934d", accentSoft: "#e8ecd2", accentMist: "rgba(232, 236, 210, 0.72)" },
-    { name: "Mei", image: meiImage, accent: "#b28b3d", accentSoft: "#f0e4bf", accentMist: "rgba(240, 228, 191, 0.72)" },
-    { name: "Juni", image: juniImage, accent: "#9a9a45", accentSoft: "#ece8bb", accentMist: "rgba(236, 232, 187, 0.72)" },
-    { name: "Juli", image: juliImage, accent: "#aa743f", accentSoft: "#eed7bd", accentMist: "rgba(238, 215, 189, 0.72)" },
-    { name: "Augustus", image: augustusImage, accent: "#b17a35", accentSoft: "#efdabe", accentMist: "rgba(239, 218, 190, 0.72)" },
-    { name: "September", image: septemberImage, accent: "#996039", accentSoft: "#ead0bd", accentMist: "rgba(234, 208, 189, 0.7)" },
-    { name: "Oktober", image: oktoberImage, accent: "#8c5831", accentSoft: "#e7cdb8", accentMist: "rgba(231, 205, 184, 0.72)" },
-    { name: "November", image: novemberImage, accent: "#8b6a79", accentSoft: "#e5d8df", accentMist: "rgba(229, 216, 223, 0.7)" },
-    { name: "December", image: decemberImage, accent: "#5f7a68", accentSoft: "#dce6dc", accentMist: "rgba(220, 230, 220, 0.7)" },
+    { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)", sun: "#d8bf78", sunSoft: "#efe3bf" },
+    { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)", sun: "#dfc069", sunSoft: "#f1e1b0" },
+    { name: "Maart", image: maartImage, accent: "#668344", accentSoft: "#e3ead4", accentMist: "rgba(227, 234, 212, 0.7)", sun: "#e3c755", sunSoft: "#efe6a9" },
+    { name: "April", image: aprilImage, accent: "#78934d", accentSoft: "#e8ecd2", accentMist: "rgba(232, 236, 210, 0.72)", sun: "#e8c84b", sunSoft: "#f1e6a5" },
+    { name: "Mei", image: meiImage, accent: "#b28b3d", accentSoft: "#f0e4bf", accentMist: "rgba(240, 228, 191, 0.72)", sun: "#e7b93e", sunSoft: "#f3daa0" },
+    { name: "Juni", image: juniImage, accent: "#9a9a45", accentSoft: "#ece8bb", accentMist: "rgba(236, 232, 187, 0.72)", sun: "#e5aa32", sunSoft: "#f2d18c" },
+    { name: "Juli", image: juliImage, accent: "#aa743f", accentSoft: "#eed7bd", accentMist: "rgba(238, 215, 189, 0.72)", sun: "#dc8f2b", sunSoft: "#efc087" },
+    { name: "Augustus", image: augustusImage, accent: "#b17a35", accentSoft: "#efdabe", accentMist: "rgba(239, 218, 190, 0.72)", sun: "#ce7b28", sunSoft: "#ebb57f" },
+    { name: "September", image: septemberImage, accent: "#996039", accentSoft: "#ead0bd", accentMist: "rgba(234, 208, 189, 0.7)", sun: "#bd6b2f", sunSoft: "#e2a77d" },
+    { name: "Oktober", image: oktoberImage, accent: "#8c5831", accentSoft: "#e7cdb8", accentMist: "rgba(231, 205, 184, 0.72)", sun: "#ad642f", sunSoft: "#d89e73" },
+    { name: "November", image: novemberImage, accent: "#8b6a79", accentSoft: "#e5d8df", accentMist: "rgba(229, 216, 223, 0.7)", sun: "#c18948", sunSoft: "#e1bf8f" },
+    { name: "December", image: decemberImage, accent: "#5f7a68", accentSoft: "#dce6dc", accentMist: "rgba(220, 230, 220, 0.7)", sun: "#d1b878", sunSoft: "#eadcb5" },
   ];
 
   onMount(() => {
@@ -125,7 +128,9 @@
     currentClock = formatClock(new Date());
 
     const clockInterval = window.setInterval(() => {
-      currentClock = formatClock(new Date());
+      const now = new Date();
+      currentClock = formatClock(now);
+      currentDateLabel = formatLongDate(now);
     }, 30_000);
 
     storageReady = true;
@@ -199,7 +204,7 @@
 
   function monthThemeStyle(monthNumber: number): string {
     const theme = monthTheme(monthNumber);
-    return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist};`;
+    return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist}; --month-sun: ${theme.sun}; --month-sun-soft: ${theme.sunSoft};`;
   }
 
   function selectMonth(monthNumber: number): void {
@@ -618,6 +623,15 @@
       minute: "2-digit",
     }).format(date);
   }
+
+  function formatLongDate(date: Date): string {
+    return new Intl.DateTimeFormat("nl-BE", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+  }
 </script>
 
 <main class:evening>
@@ -694,9 +708,12 @@
         style={monthThemeStyle(month.month)}
         onclick={() => selectMonth(month.month)}
       >
-        <span>{month.month}</span>
+        <span class="month-number">{month.month}</span>
         <strong>{monthName(month.month)}</strong>
         <em>{formatMoneyCents(total?.restCents ?? 0)}</em>
+        {#if currentMonthInSelectedYear === month.month}
+          <Sun class="current-sun" size={14} aria-hidden="true" />
+        {/if}
       </button>
     {/each}
   </section>
@@ -725,6 +742,9 @@
         <header class="month-header">
           <img src={monthImage(month.month)} alt="" />
           <div class="month-title">
+            {#if currentMonthInSelectedYear === month.month}
+              <Sun class="current-card-sun" size={17} aria-hidden="true" />
+            {/if}
             <h2>{monthName(month.month)}</h2>
           </div>
           <div class="month-tools">
@@ -1033,12 +1053,12 @@
         {/each}
 
         <footer class="month-footer">
-          <span>
-            Maandverschil
+          <span class="month-footer-stat">
+            <em>Maandverschil</em>
             <strong class:negative={(total?.differenceCents ?? 0) < 0}>{formatMoneyCents(total?.differenceCents ?? 0)}</strong>
           </span>
-          <span>
-            Eindsaldo
+          <span class="month-footer-stat">
+            <em>Eindsaldo</em>
             <strong class:negative={(total?.restCents ?? 0) < 0}>{formatMoneyCents(total?.restCents ?? 0)}</strong>
           </span>
         </footer>
@@ -1084,9 +1104,8 @@
   {/if}
 
   <footer class="status-bar">
-    <span>{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
+    <span class="status-mode">{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
+    <span class="status-date">{currentDateLabel} <Clock size={14} aria-hidden="true" /> {currentClock}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
-    <span><Clock size={15} /> {currentClock}</span>
-    <span>Eindsaldo jaar {formatMoneyCents(totals.endCents)}</span>
   </footer>
 </main>
