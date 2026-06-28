@@ -88,6 +88,13 @@
     endMonth: number | null;
   }
 
+  interface RecentEntry {
+    entry: Entry;
+    monthNumber: number;
+    sectionLabel: string;
+    isRecurring: boolean;
+  }
+
   type AppMode = "demo" | "production";
   type AppView = "year" | "edit" | "settings" | "safety" | "history";
   type SettingsTab = "data" | "categories" | "rules";
@@ -162,6 +169,8 @@
 
   const totals = $derived(yearTotals(selectedYear));
   const currentMonthInSelectedYear = $derived(selectedYear.year === today.getFullYear() ? today.getMonth() + 1 : null);
+  const validationIssues = $derived(validateBook(book));
+  const recentEntries = $derived.by(() => recentEntriesForYear(8));
   const months: MonthView[] = [
     { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)", sun: "#d8bf78", sunSoft: "#efe3bf" },
     { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)", sun: "#dfc069", sunSoft: "#f1e1b0" },
@@ -401,6 +410,50 @@
 
   function statusCenterLabel(): string {
     return activeView === "year" ? `${monthName(activeMonth)} geselecteerd` : viewLabels[activeView];
+  }
+
+  function openSettingsTab(tab: SettingsTab): void {
+    activeSettingsTab = tab;
+    activeView = "settings";
+  }
+
+  function totalEntryCount(): number {
+    return selectedYear.months.reduce((sum, month) => sum + month.entries.length, 0);
+  }
+
+  function manualEntryCount(): number {
+    return selectedYear.months.reduce((sum, month) => sum + month.entries.filter((entry) => !isRecurringEntry(entry)).length, 0);
+  }
+
+  function configuredSubcategoryCount(): number {
+    return book.subcategories.filter((subcategory) => !subcategory.hidden).length;
+  }
+
+  function activeRuleCount(): number {
+    return book.recurringRules.filter((rule) => rule.active).length;
+  }
+
+  function isRecurringEntry(entry: Entry): boolean {
+    return book.recurringRules.some((rule) => entry.id.startsWith(`${rule.id}-`));
+  }
+
+  function recentEntriesForYear(limit: number): RecentEntry[] {
+    return selectedYear.months
+      .flatMap((month) =>
+        month.entries.map((entry) => ({
+          entry,
+          monthNumber: month.month,
+          sectionLabel: SECTION_LABELS[entry.section],
+          isRecurring: isRecurringEntry(entry),
+        })),
+      )
+      .sort((left, right) => right.entry.createdAt - left.entry.createdAt)
+      .slice(0, limit);
+  }
+
+  function formatEntryDate(isoDate: string): string {
+    const [, month, day] = isoDate.split("-");
+    return `${day}/${month}`;
   }
 
   function emptyRecurringRuleDraft(section: Section): RecurringRuleDraft {
@@ -1282,18 +1335,145 @@
       {:else if activeView === "edit"}
         <header>
           <h2>Bewerken</h2>
-          <p>Regels, categorieen en terugkerende posten krijgen hier hun eigen plaats.</p>
+          <p>Beheer de structuur achter de maandkaarten zonder in de jaarweergave te zoeken.</p>
         </header>
+        <section class="menu-card-grid" aria-label="Bewerkopties">
+          <article class="menu-card">
+            <div class="menu-card-icon"><Settings size={20} /></div>
+            <div>
+              <h3>Categorieen beheren</h3>
+              <p>{configuredSubcategoryCount()} actieve subcategorieen staan klaar onder inkomsten, vaste kosten en variabele kosten.</p>
+            </div>
+            <button type="button" class="inline-action" onclick={() => openSettingsTab("categories")}>Open categorieen</button>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><RotateCcw size={20} /></div>
+            <div>
+              <h3>Vaste regels beheren</h3>
+              <p>{activeRuleCount()} actieve regels vullen het voorbeeldjaar automatisch aan.</p>
+            </div>
+            <button type="button" class="inline-action" onclick={() => openSettingsTab("rules")}>Open vaste regels</button>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><CalendarDays size={20} /></div>
+            <div>
+              <h3>Gegevensmodus</h3>
+              <p>{appMode === "demo" ? "Leermodus is actief. Je werkt in de fictieve begroting 2026." : "Echte modus is actief. Deze gegevens staan apart van leermodus."}</p>
+            </div>
+            <button type="button" class="inline-action" onclick={() => openSettingsTab("data")}>Open gegevens</button>
+          </article>
+        </section>
+        <section class="settings-block" aria-label="Bewerkstatus">
+          <header>
+            <div>
+              <h3>Wat staat er nu in dit jaar?</h3>
+              <p>Een snelle controle voordat je categorieen of regels aanpast.</p>
+            </div>
+          </header>
+          <div class="status-tile-grid">
+            <div class="status-tile"><span>Boekingen</span><strong>{totalEntryCount()}</strong></div>
+            <div class="status-tile"><span>Handmatig</span><strong>{manualEntryCount()}</strong></div>
+            <div class="status-tile"><span>Vaste regels</span><strong>{book.recurringRules.length}</strong></div>
+            <div class="status-tile"><span>Eindsaldo</span><strong>{formatMoneyCents(totals.endCents)}</strong></div>
+          </div>
+        </section>
       {:else if activeView === "safety"}
         <header>
           <h2>Veiligheid</h2>
-          <p>Back-ups, herstel en controle komen hier zonder de jaarweergave te verstoren.</p>
+          <p>Controleer of de gegevens leesbaar en gescheiden bewaard worden. Back-up en herstel blijven een latere, aparte stap.</p>
         </header>
+        <section class="menu-card-grid" aria-label="Veiligheidsstatus">
+          <article class="menu-card">
+            <div class="menu-card-icon"><ShieldCheck size={20} /></div>
+            <div>
+              <h3>Gegevenscontrole</h3>
+              <p>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><CheckCircle2 size={20} /></div>
+            <div>
+              <h3>Lokale opslag</h3>
+              <p>{appMode === "demo" ? "Leermodus gebruikt eigen lokale opslag." : "Echte modus gebruikt eigen lokale opslag."} Status: {saveStatus.toLowerCase()}.</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Lock size={20} /></div>
+            <div>
+              <h3>Gescheiden modi</h3>
+              <p>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</p>
+            </div>
+          </article>
+        </section>
+        <section class="settings-block" aria-label="Controlelijst veiligheid">
+          <header>
+            <div>
+              <h3>Controlelijst</h3>
+              <p>Dit is nog geen back-upmanager, maar wel de eerste plek om problemen zichtbaar te maken.</p>
+            </div>
+          </header>
+          {#if validationIssues.length === 0}
+            <div class="empty-state">
+              <CheckCircle2 size={18} />
+              <span>Alles wat nu in het boek zit, past bij het huidige gegevensmodel.</span>
+            </div>
+          {:else}
+            <ul class="issue-list">
+              {#each validationIssues as issue}
+                <li>{issue}</li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
       {:else}
         <header>
           <h2>Historiek</h2>
-          <p>Wijzigingen en eerdere jaren krijgen hier een rustig overzicht.</p>
+          <p>Een rustig overzicht van wat recent in het jaar staat. Volledige undo/redo komt later.</p>
         </header>
+        <section class="settings-block" aria-label="Recente boekingen">
+          <header>
+            <div>
+              <h3>Recente boekingen</h3>
+              <p>De nieuwste regels bovenaan, inclusief automatisch aangemaakte vaste regels.</p>
+            </div>
+          </header>
+          {#if recentEntries.length === 0}
+            <div class="empty-state">
+              <Clock size={18} />
+              <span>Er zijn nog geen boekingen in dit jaar.</span>
+            </div>
+          {:else}
+            <div class="history-list">
+              {#each recentEntries as item}
+                <article class="history-row">
+                  <span>{formatEntryDate(item.entry.date)}</span>
+                  <strong>{monthName(item.monthNumber)}</strong>
+                  <span>{item.sectionLabel}</span>
+                  <span>{item.entry.party || "Geen partij"}</span>
+                  <span>{item.entry.description}</span>
+                  <strong>{formatMoneyCents(item.entry.amountCents ?? 0)}</strong>
+                  <small>{item.isRecurring ? "Vaste regel" : "Handmatig"}</small>
+                </article>
+              {/each}
+            </div>
+          {/if}
+        </section>
+        <section class="menu-card-grid" aria-label="Historiek samenvatting">
+          <article class="menu-card">
+            <div class="menu-card-icon"><History size={20} /></div>
+            <div>
+              <h3>Wijzigingen later</h3>
+              <p>Hier komt later echte wijzigingshistoriek met undo en herstel. Nu tonen we alvast wat er in het jaar staat.</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Coins size={20} /></div>
+            <div>
+              <h3>Jaarstand</h3>
+              <p>Start {formatMoneyCents(selectedYear.startBalanceCents)} en eind {formatMoneyCents(totals.endCents)}.</p>
+            </div>
+          </article>
+        </section>
       {/if}
     </section>
   {:else}

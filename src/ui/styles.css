@@ -347,6 +347,130 @@ h1 {
   font-size: 1.18rem;
 }
 
+.menu-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  max-width: 1160px;
+}
+
+.menu-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(113, 90, 52, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.74);
+  padding: 14px;
+  box-shadow: 0 18px 38px rgba(65, 51, 26, 0.1);
+}
+
+.menu-card h3 {
+  margin: 0 0 3px;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #24341f;
+  font-size: 1.08rem;
+}
+
+.menu-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  border: 1px solid rgba(67, 86, 54, 0.2);
+  border-radius: 8px;
+  color: #355f40;
+  background: rgba(232, 240, 222, 0.64);
+}
+
+.inline-action {
+  grid-column: 2;
+  justify-self: start;
+  min-height: 31px;
+  border: 1px solid rgba(67, 86, 54, 0.26);
+  border-radius: 7px;
+  color: #fff8e7;
+  background: #355f40;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.status-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.status-tile {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(105, 87, 53, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.58);
+  padding: 10px;
+}
+
+.status-tile span,
+.history-row small {
+  color: #6b604d;
+  font-size: 0.76rem;
+}
+
+.status-tile strong {
+  color: #0f4f31;
+  font-size: 1.08rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(67, 86, 54, 0.16);
+  border-radius: 8px;
+  color: #355f40;
+  background: rgba(232, 240, 222, 0.54);
+  padding: 10px 12px;
+}
+
+.issue-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.history-list {
+  display: grid;
+  gap: 6px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: 54px 90px 120px minmax(100px, 0.8fr) minmax(180px, 1.2fr) 100px 86px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(105, 87, 53, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.58);
+  padding: 8px 10px;
+}
+
+.history-row span,
+.history-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-row strong:last-of-type {
+  color: #0f4f31;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .settings-message {
   flex: 0 0 auto;
   max-width: 360px;
@@ -713,6 +837,9 @@ h1 {
 .evening .settings-tabs,
 .evening .settings-block,
 .evening .category-settings-card,
+.evening .menu-card,
+.evening .status-tile,
+.evening .history-row,
 .evening .rule-card,
 .evening .new-rule-panel {
   background: rgba(255, 255, 255, 0.06);
@@ -724,6 +851,9 @@ h1 {
 .evening .settings-card span,
 .evening .settings-block p,
 .evening .subcategory-editor-row span,
+.evening .menu-card p,
+.evening .status-tile span,
+.evening .history-row small,
 .evening .rule-card-summary span,
 .evening .new-rule-panel p,
 .evening .rule-switch {
@@ -735,9 +865,22 @@ h1 {
 .evening .settings-card strong,
 .evening .settings-block h3,
 .evening .category-settings-card h4,
+.evening .menu-card h3,
 .evening .rule-card-summary strong,
 .evening .new-rule-panel h4 {
   color: #f0e4c1;
+}
+
+.evening .menu-card-icon,
+.evening .empty-state {
+  color: #d9e6c9;
+  background: rgba(87, 132, 81, 0.16);
+  border-color: rgba(219, 190, 118, 0.18);
+}
+
+.evening .status-tile strong,
+.evening .history-row strong:last-of-type {
+  color: #a7d79e;
 }
 
 .evening .settings-message {
@@ -2171,6 +2314,24 @@ h1 {
   .new-rule-grid {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .menu-card {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-action {
+    grid-column: auto;
+  }
+
+  .history-row {
+    grid-template-columns: 52px minmax(0, 1fr) 92px;
+  }
+
+  .history-row span:nth-of-type(2),
+  .history-row span:nth-of-type(3),
+  .history-row small {
+    display: none;
   }
 
   .wide-rule-field {

@@ -910,6 +910,17 @@ async function expectMenuPagesDoNotCompressBoard(page) {
     await expectVisibleText(page, label);
     await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
   }
+  await page.getByRole("button", { name: "Bewerken" }).click();
+  await expectVisibleText(page, "Categorieen beheren");
+  await expectVisibleText(page, "Vaste regels beheren");
+  await page.getByRole("button", { name: "Open categorieen" }).click();
+  await expectVisibleText(page, "Beheer de subcategorieen");
+  await page.getByRole("button", { name: "Veiligheid" }).click();
+  await expectVisibleText(page, "Gegevenscontrole");
+  await expectVisibleText(page, "Controlelijst");
+  await page.getByRole("button", { name: "Historiek" }).click();
+  await expectVisibleText(page, "Recente boekingen");
+  await expectVisibleText(page, "Vaste regel");
   await page.getByRole("button", { name: "Jaar" }).click();
   await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
 }
@@ -1134,6 +1145,7 @@ async function expectModeSwitchSeparatesDemo(page) {
   if (headerIssue) throw new Error(`Moduscontrole faalde: ${headerIssue}`);
 
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Echt" }).click();
   await expectVisibleText(page, "Productie");
@@ -1157,6 +1169,7 @@ async function expectModeSwitchSeparatesDemo(page) {
   if (issue) throw new Error(`Moduscontrole faalde: ${issue}`);
 
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Jaar" }).click();
   await expectHiddenText(page, "Gegevensmodus");
