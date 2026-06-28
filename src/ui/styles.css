@@ -483,14 +483,14 @@ h1 {
   align-items: flex-start;
   gap: 16px;
   overflow-x: auto;
-  padding: 10px 24px 76px;
+  padding: 10px 24px 66px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
 .board-spacer {
-  flex: 0 0 min(88vw, 410px);
+  flex: 0 0 min(88vw, 460px);
   min-height: 1px;
 }
 
@@ -529,7 +529,7 @@ h1 {
   --ledger-amount: 86px;
   --ledger-action: 60px;
   --ledger-columns: minmax(88px, 0.82fr) minmax(150px, 1.55fr) var(--ledger-amount) var(--ledger-action);
-  flex: 0 0 440px;
+  flex: 0 0 480px;
   overflow: hidden;
   border: 1px solid rgba(112, 92, 58, 0.22);
   border-radius: 8px;
@@ -558,10 +558,13 @@ h1 {
 .month-card.active-card {
   border-color: color-mix(in srgb, var(--month-accent) 64%, #2f6a3c);
   background: rgba(255, 254, 249, 0.98);
+  outline: 2px solid color-mix(in srgb, var(--month-sun) 34%, transparent);
+  outline-offset: 2px;
   z-index: 2;
   box-shadow:
-    0 22px 44px rgba(65, 51, 26, 0.18),
-    0 0 0 2px color-mix(in srgb, var(--month-accent) 24%, transparent);
+    0 24px 48px rgba(65, 51, 26, 0.18),
+    0 0 0 2px color-mix(in srgb, var(--month-accent) 26%, transparent),
+    0 0 30px color-mix(in srgb, var(--month-sun) 24%, transparent);
 }
 
 .evening .month-card {
@@ -753,7 +756,7 @@ h1 {
 
 .subcategory-row .subcategory-add {
   grid-column: 4;
-  justify-self: end;
+  justify-self: start;
 }
 
 .subcategory-add {
@@ -788,12 +791,12 @@ h1 {
 
 .locked-row {
   display: inline-flex;
-  justify-self: end;
-  justify-content: flex-end;
+  justify-self: start;
+  justify-content: flex-start;
   align-items: center;
   gap: 4px;
   width: var(--ledger-action);
-  padding-right: 7px;
+  padding-left: 2px;
   color: #6b745a;
   font-size: 0.76rem;
 }
@@ -871,11 +874,11 @@ h1 {
 .row-actions {
   display: flex;
   justify-self: end;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 3px;
   width: var(--ledger-action);
   min-width: 0;
-  padding-right: 1px;
+  padding-right: 0;
 }
 
 .row-actions button {
@@ -1382,12 +1385,12 @@ h1 {
   bottom: 0;
   left: 0;
   z-index: 8;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(230px, 1.2fr) minmax(130px, 0.85fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
-  padding: 6px 24px;
+  padding: 4px 24px;
   border: 1px solid rgba(105, 87, 53, 0.22);
   border-right: 0;
   border-bottom: 0;
@@ -1396,7 +1399,7 @@ h1 {
   background: #fffdf7;
   box-shadow: 0 -8px 22px rgba(65, 51, 26, 0.12);
   color: #526144;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .status-bar span {
@@ -1410,17 +1413,20 @@ h1 {
 }
 
 .status-bar strong {
-  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #43563a;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
 }
 
 .status-mode {
-  flex: 1 1 220px;
+  justify-content: flex-start;
 }
 
 .status-date {
-  flex: 1 1 230px;
   justify-content: center;
 }
 
@@ -1454,27 +1460,25 @@ h1 {
     --ledger-amount: 72px;
     --ledger-action: 58px;
     --ledger-columns: minmax(62px, 0.78fr) minmax(92px, 1.45fr) var(--ledger-amount) var(--ledger-action);
-    flex-basis: min(92vw, 410px);
+    flex-basis: min(94vw, 430px);
   }
 
   .status-bar {
     right: 0;
     bottom: 0;
     left: 0;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 3px 10px;
-    padding: 5px 10px;
-    font-size: 0.78rem;
+    grid-template-columns: minmax(74px, 0.7fr) minmax(0, 1.2fr) minmax(86px, 0.82fr);
+    gap: 6px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
   }
 
   .status-mode {
-    flex-basis: 100%;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .status-date {
-    flex-basis: auto;
+    justify-content: center;
   }
 }
 

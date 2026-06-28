@@ -143,7 +143,7 @@
     if (!storageReady) return;
     localStorage.setItem(modeStorageKey, appMode);
     localStorage.setItem(storageKeyForMode(appMode), JSON.stringify(book));
-    saveStatus = appMode === "demo" ? "Leermodus lokaal bewaard" : "Productiebestand lokaal bewaard";
+    saveStatus = "Lokaal bewaard";
   });
 
   function loadBookForMode(mode: AppMode): void {
@@ -157,13 +157,13 @@
           book = parsedBook;
           drafts = createDrafts(parsedBook);
           expandedDraftKey = null;
-          saveStatus = mode === "demo" ? "Leermodus lokaal geladen" : "Productiebestand lokaal geladen";
+          saveStatus = "Lokaal geladen";
           return;
         } else {
-          saveStatus = mode === "demo" ? "Lokale leermodus genegeerd" : "Lokaal productiebestand genegeerd";
+          saveStatus = "Lokale gegevens genegeerd";
         }
       } catch {
-        saveStatus = mode === "demo" ? "Leermodus kon niet gelezen worden" : "Productiebestand kon niet gelezen worden";
+        saveStatus = "Kon lokale gegevens niet lezen";
       }
     }
 

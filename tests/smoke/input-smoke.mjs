@@ -59,6 +59,7 @@ try {
   await expectQuietActionHeaders(page);
   await expectCategoryInputs(page);
   await expectExcelNumberAlignment(page);
+  await expectSavedRowActionColumnSnug(page, "eerste laadbeurt");
   await expectLedgerBreathingRoom(page, "eerste laadbeurt");
   await expectUnifiedLedgerGrid(page, "eerste laadbeurt");
   await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
@@ -310,6 +311,7 @@ async function auditResponsiveViewports(browser) {
     await expectSeasonalMonthBadges(page);
     await expectMonthFooterSummaries(page, `${viewport.width}x${viewport.height}`);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
+    await expectSavedRowActionColumnSnug(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
     await expectLedgerBreathingRoom(page, `${viewport.width}x${viewport.height}`);
     if (viewport.width <= 390) {
@@ -335,6 +337,7 @@ async function auditDarkMode(browser) {
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "donkere modus");
   await expectMonthHeaderLayout(page, "donkere modus");
+  await expectSavedRowActionColumnSnug(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
   await captureDraftNotePopup(page, 9, "10-dark-mode-note-popup.png");
@@ -466,7 +469,7 @@ async function expectUnifiedLedgerGrid(page, label) {
       if (headCells.length < 4) return [`Kaart ${cardIndex + 1}: ledgerkop heeft te weinig kolommen.`];
 
       const amountRight = headCells[2].getBoundingClientRect().right;
-      const actionRight = headCells[3].getBoundingClientRect().right;
+      const actionColumnRect = headCells[3].getBoundingClientRect();
       const rows = Array.from(card.querySelectorAll(".section-title, .subcategory-row, .entry-row"));
       const cardIssues = [];
 
@@ -485,9 +488,9 @@ async function expectUnifiedLedgerGrid(page, label) {
 
         const actionElement = row.querySelector(".row-actions") ?? row.querySelector(".subcategory-add") ?? row.querySelector(".locked-row");
         if (actionElement instanceof HTMLElement) {
-          const delta = Math.abs(actionElement.getBoundingClientRect().right - actionRight);
-          if (delta > tolerance) {
-            cardIssues.push(`${describeRow(row)}: actiekolom wijkt ${Math.round(delta)}px af.`);
+          const actionRect = actionElement.getBoundingClientRect();
+          if (actionRect.left < actionColumnRect.left - tolerance || actionRect.right > actionColumnRect.right + tolerance) {
+            cardIssues.push(`${describeRow(row)}: actie-element valt buiten de actiekolom.`);
           }
         }
       }
@@ -729,6 +732,7 @@ async function expectActiveCardProminent(page, monthNumber) {
 
     const style = getComputedStyle(card);
     if (style.boxShadow === "none") return "Actieve maandkaart heeft geen duidelijke schaduw.";
+    if (style.outlineStyle === "none" || Number.parseFloat(style.outlineWidth || "0") < 1) return "Actieve maandkaart mist subtiele glowrand.";
     if (Number(style.zIndex || "0") < 1) return "Actieve maandkaart ligt niet zichtbaar boven buurkaarten.";
 
     return "";
@@ -884,10 +888,15 @@ async function expectTaskbarTime(page) {
 
     const style = getComputedStyle(statusBar);
     if (style.position !== "fixed") return "Statusbalk is niet vast onderaan.";
+    if (style.display !== "grid") return "Statusbalk gebruikt geen compacte verdeling.";
     const statusRect = statusBar.getBoundingClientRect();
     if (statusRect.bottom > window.innerHeight + 1) return "Statusbalk valt buiten beeld.";
-    const maxHeight = window.innerWidth <= 640 ? 58 : 40;
+    const maxHeight = window.innerWidth <= 640 ? 34 : 32;
     if (statusRect.height > maxHeight) return `Statusbalk is te hoog (${Math.round(statusRect.height)}px).`;
+
+    const children = Array.from(statusBar.children).filter((child) => child instanceof HTMLElement);
+    const tops = children.map((child) => child.getBoundingClientRect().top);
+    if (Math.max(...tops) - Math.min(...tops) > 4) return "Statusbalk valt uiteen in meerdere regels.";
     return "";
   });
 
@@ -1120,6 +1129,41 @@ async function expectExcelNumberAlignment(page) {
   });
 
   if (issue) throw new Error(`Excel-uitlijning faalde: ${issue}`);
+}
+
+async function expectSavedRowActionColumnSnug(page, label) {
+  const issues = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll(".month-card .entry-row:not(.new-entry-row):not(.edit-row)")).filter((row) => {
+      if (!(row instanceof HTMLElement)) return false;
+      const rect = row.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+
+    return rows.flatMap((row, index) => {
+      if (!(row instanceof HTMLElement)) return [];
+      const card = row.closest(".month-card");
+      const amount = row.querySelector(".amount-cell, :scope > strong");
+      const action = row.querySelector(".row-actions button, .locked-row");
+      if (!(card instanceof HTMLElement) || !(amount instanceof HTMLElement) || !(action instanceof HTMLElement)) return [];
+
+      const cardRect = card.getBoundingClientRect();
+      const amountRect = amount.getBoundingClientRect();
+      const actionRect = action.getBoundingClientRect();
+      const rowIssues = [];
+      const amountToActionGap = actionRect.left - amountRect.right;
+      const actionRightInset = cardRect.right - actionRect.right;
+      const minExpectedWidth = window.innerWidth >= 760 ? 468 : 0;
+
+      if (amountToActionGap > 24) rowIssues.push(`Rij ${index + 1}: lege ruimte tussen bedrag en knop is te groot (${Math.round(amountToActionGap)}px).`);
+      if (actionRightInset < 8) rowIssues.push(`Rij ${index + 1}: knop staat te dicht tegen de rechterrand.`);
+      if (minExpectedWidth && cardRect.width < minExpectedWidth) rowIssues.push(`Rij ${index + 1}: maandkaart is nog te smal (${Math.round(cardRect.width)}px).`);
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Actiekolomcontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
 }
 
 async function expectLedgerBreathingRoom(page, label) {
