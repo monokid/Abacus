@@ -332,7 +332,6 @@ h1 {
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
-    transform 160ms ease,
     background 160ms ease;
   cursor: pointer;
 }
@@ -340,7 +339,6 @@ h1 {
 .month-card.active-card {
   border-color: rgba(48, 106, 60, 0.62);
   background: rgba(255, 254, 249, 0.98);
-  transform: scale(1.006);
   z-index: 2;
   box-shadow:
     0 22px 44px rgba(65, 51, 26, 0.18),
@@ -492,7 +490,9 @@ h1 {
 
 .entry-row span,
 .entry-row strong {
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entry-row span:first-child {

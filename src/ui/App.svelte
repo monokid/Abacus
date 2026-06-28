@@ -604,8 +604,8 @@
                     {/if}
                   {:else}
                     <div class="entry-row" data-entry-row={entry.id}>
-                      <span>{entry.party || "-"}</span>
-                      <span>{entry.description}</span>
+                      <span title={entry.party || "-"}>{entry.party || "-"}</span>
+                      <span title={entry.description}>{entry.description}</span>
                       <strong>{formatDecimalCents(entry.amountCents)}</strong>
                       <span class="row-actions">
                         <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
@@ -668,8 +668,8 @@
                 {/if}
               {:else}
                 <div class="entry-row" data-entry-row={entry.id}>
-                  <span>{entry.party || "-"}</span>
-                  <span>{entry.description}</span>
+                  <span title={entry.party || "-"}>{entry.party || "-"}</span>
+                  <span title={entry.description}>{entry.description}</span>
                   <strong>{formatDecimalCents(entry.amountCents)}</strong>
                   <span class="row-actions">
                     <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>

@@ -483,7 +483,7 @@ async function expectActiveCardProminent(page, monthNumber) {
     if (!(card instanceof HTMLElement)) return "Actieve maandkaart ontbreekt.";
 
     const style = getComputedStyle(card);
-    if (style.transform === "none") return "Actieve maandkaart heeft geen subtiele lift.";
+    if (style.boxShadow === "none") return "Actieve maandkaart heeft geen duidelijke schaduw.";
     if (Number(style.zIndex || "0") < 1) return "Actieve maandkaart ligt niet zichtbaar boven buurkaarten.";
 
     return "";
