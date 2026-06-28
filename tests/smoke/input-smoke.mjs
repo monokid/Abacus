@@ -79,6 +79,8 @@ try {
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
   await expectScrollbarsHidden(page);
+  await expectMonthLedgerScrollbarsQuiet(page);
+  await expectLedgerCanScrollClearOfFooter(page, "eerste laadbeurt");
   await page.evaluate(() => window.scrollTo(0, 0));
   await expectMonthTabsVisible(page, "na terug naar bovenzijde");
   await navigateToMonth(page, 9);
@@ -333,6 +335,8 @@ async function auditResponsiveViewports(browser) {
     await expectMonthFootersAligned(page, `${viewport.width}x${viewport.height}`);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
     await expectSpreadsheetColumnDividers(page);
+    await expectMonthLedgerScrollbarsQuiet(page);
+    await expectLedgerCanScrollClearOfFooter(page, `${viewport.width}x${viewport.height}`);
     await expectSavedRowActionColumnSnug(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
     await expectLedgerBreathingRoom(page, `${viewport.width}x${viewport.height}`);
@@ -362,6 +366,8 @@ async function auditDarkMode(browser) {
   await expectSectionColorScales(page);
   await expectMonthHeaderLayout(page, "donkere modus");
   await expectSpreadsheetColumnDividers(page);
+  await expectMonthLedgerScrollbarsQuiet(page);
+  await expectLedgerCanScrollClearOfFooter(page, "donkere modus");
   await expectSavedRowActionColumnSnug(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
@@ -511,7 +517,7 @@ async function expectUnifiedLedgerGrid(page, label) {
           }
         }
 
-        const actionElement = row.querySelector(".row-actions") ?? row.querySelector(".subcategory-add") ?? row.querySelector(".locked-row");
+        const actionElement = row.querySelector(".row-actions") ?? row.querySelector(".subcategory-actions") ?? row.querySelector(".subcategory-add") ?? row.querySelector(".locked-row");
         if (actionElement instanceof HTMLElement) {
           const actionRect = actionElement.getBoundingClientRect();
           if (actionRect.left < actionColumnRect.left - tolerance || actionRect.right > actionColumnRect.right + tolerance) {
@@ -1318,11 +1324,24 @@ async function expectLedgerBreathingRoom(page, label) {
         if (paddingLeft < 3) rowIssues.push(`Rij ${index + 1}: tekstcel heeft te weinig interne padding.`);
       }
 
-      const actionCell = row.querySelector(".row-actions, .subcategory-add, .locked-row, .action-head");
+      const actionCell = row.querySelector(".row-actions, .subcategory-actions, .subcategory-add, .locked-row, .action-head");
       if (actionCell instanceof HTMLElement) {
         const actionRect = actionCell.getBoundingClientRect();
         if (actionRect.right > cardRect.right - 7 + tolerance) {
           rowIssues.push(`Rij ${index + 1}: actiekolom hangt te dicht tegen de rechterrand.`);
+        }
+        const categoryButton = row.querySelector(".subcategory-add");
+        if (categoryButton instanceof HTMLElement) {
+          const buttonRect = categoryButton.getBoundingClientRect();
+          if (!categoryButton.parentElement?.classList.contains("subcategory-actions")) {
+            rowIssues.push(`Rij ${index + 1}: categorie-plusknop mist een eigen actiecelle.`);
+          }
+          if (buttonRect.width > 34) {
+            rowIssues.push(`Rij ${index + 1}: categorie-plusknop is te breed.`);
+          }
+          if (buttonRect.left <= actionRect.left + 2) {
+            rowIssues.push(`Rij ${index + 1}: categorie-plusknop raakt de kolomlijn.`);
+          }
         }
       }
 
@@ -1610,6 +1629,59 @@ async function expectScrollbarsHidden(page) {
   });
 
   if (issue) throw new Error(`Scrollbalkcontrole faalde: ${issue}`);
+}
+
+async function expectMonthLedgerScrollbarsQuiet(page) {
+  const issue = await page.evaluate(() => {
+    const ledgers = Array.from(document.querySelectorAll(".month-ledger"));
+    if (ledgers.length === 0) return "Maandledger ontbreekt.";
+    for (const ledger of ledgers) {
+      if (!(ledger instanceof HTMLElement)) continue;
+      const rect = ledger.getBoundingClientRect();
+      if (rect.right <= 0 || rect.left >= window.innerWidth) continue;
+      const style = getComputedStyle(ledger);
+      if (style.scrollbarWidth !== "thin") return "Maandkaart gebruikt geen subtiele interne scrollbar.";
+      if (style.maskImage !== "none" || style.webkitMaskImage !== "none") return "Maandledger maskeert/fadet regels onderaan.";
+      const paddingBottom = Number.parseFloat(style.paddingBottom || "0");
+      if (paddingBottom < 64) return "Maandledger heeft te weinig onderruimte boven de vaste totalen.";
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Maandledger-scrollcontrole faalde: ${issue}`);
+}
+
+async function expectLedgerCanScrollClearOfFooter(page, label) {
+  const issue = await page.evaluate(() => {
+    const ledgers = Array.from(document.querySelectorAll(".month-ledger")).filter((ledger) => {
+      if (!(ledger instanceof HTMLElement)) return false;
+      const rect = ledger.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth && ledger.scrollHeight > ledger.clientHeight + 8;
+    });
+    if (ledgers.length === 0) return "";
+
+    for (const ledger of ledgers) {
+      if (!(ledger instanceof HTMLElement)) continue;
+      const originalScrollTop = ledger.scrollTop;
+      ledger.scrollTop = ledger.scrollHeight;
+      const ledgerRect = ledger.getBoundingClientRect();
+      const rows = Array.from(ledger.querySelectorAll(".entry-row, .subcategory-row")).filter((row) => {
+        if (!(row instanceof HTMLElement)) return false;
+        const rect = row.getBoundingClientRect();
+        return rect.bottom > ledgerRect.top && rect.top < ledgerRect.bottom;
+      });
+      const lastRow = rows.at(-1);
+      const lastRect = lastRow instanceof HTMLElement ? lastRow.getBoundingClientRect() : null;
+      ledger.scrollTop = originalScrollTop;
+      if (!lastRect) return "Geen laatste zichtbare rij gevonden na scrollen.";
+      if (lastRect.bottom > ledgerRect.bottom - 56) {
+        return "Laatste ledger-rij kan niet ruim boven de vaste maandtotalen komen.";
+      }
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Maandledger-eindcontrole faalde (${label}): ${issue}`);
 }
 
 async function captureScreenshot(page, filename) {

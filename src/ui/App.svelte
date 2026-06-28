@@ -799,16 +799,18 @@
               <div class="subcategory-row" data-entry-count={groupedEntries.length}>
                 <span>{subcategory.name}</span>
                 <strong>{formatMoneyCents(subcategoryTotal)}</strong>
-                <button
-                  class="subcategory-add"
-                  type="button"
-                  aria-label={`Invoer openen voor ${subcategory.name}`}
-                  title={`Invoer openen voor ${subcategory.name}`}
-                  data-tooltip={`Invoer openen voor ${subcategory.name}`}
-                  onclick={() => openDraft(month.month, section, subcategory.id)}
-                >
-                  <Plus size={15} />
-                </button>
+                <span class="subcategory-actions actions-cell">
+                  <button
+                    class="subcategory-add"
+                    type="button"
+                    aria-label={`Invoer openen voor ${subcategory.name}`}
+                    title={`Invoer openen voor ${subcategory.name}`}
+                    data-tooltip={`Invoer openen voor ${subcategory.name}`}
+                    onclick={() => openDraft(month.month, section, subcategory.id)}
+                  >
+                    <Plus size={15} />
+                  </button>
+                </span>
               </div>
 
               {@const draft = draftFor(month.month, section, subcategory.id)}
@@ -1110,6 +1112,10 @@
   <footer class="status-bar">
     <span class="status-mode">{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
-    <span class="status-date">{currentDateLabel} <Clock size={14} aria-hidden="true" /> {currentClock}</span>
+    <span class="status-date" title={`${currentDateLabel} ${currentClock}`}>
+      <span class="date-label">{currentDateLabel}</span>
+      <Clock size={14} aria-hidden="true" />
+      {currentClock}
+    </span>
   </footer>
 </main>
