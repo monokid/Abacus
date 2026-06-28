@@ -207,15 +207,21 @@
     return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist}; --month-sun: ${theme.sun}; --month-sun-soft: ${theme.sunSoft};`;
   }
 
-  function selectMonth(monthNumber: number): void {
+  function centerMonth(monthNumber: number, focusCard = false): void {
     activeMonth = monthNumber;
 
     requestAnimationFrame(() => {
       scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
       scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
-      const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
-      if (card instanceof HTMLElement) card.focus({ preventScroll: true });
+      if (focusCard) {
+        const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
+        if (card instanceof HTMLElement) card.focus({ preventScroll: true });
+      }
     });
+  }
+
+  function selectMonth(monthNumber: number): void {
+    centerMonth(monthNumber, true);
   }
 
   function selectCurrentMonth(): void {
@@ -231,12 +237,7 @@
   }
 
   function activateMonthForInput(monthNumber: number): void {
-    if (activeMonth === monthNumber) return;
-    activeMonth = monthNumber;
-
-    requestAnimationFrame(() => {
-      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
-    });
+    centerMonth(monthNumber);
   }
 
   function scrollRailToItem(railSelector: string, itemSelector: string): void {
@@ -316,11 +317,9 @@
   function openDraft(monthNumber: number, section: Section, subcategoryId: string): void {
     const key = draftKey(monthNumber, section, subcategoryId);
     expandedDraftKey = key;
-    activeMonth = monthNumber;
+    centerMonth(monthNumber);
 
     requestAnimationFrame(() => {
-      scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
-      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
       const input = document.querySelector(`[data-testid="draft-${monthNumber}-${section}-${subcategoryId}"] input[aria-label^="Partij"]`);
       if (input instanceof HTMLInputElement) input.focus();
     });
@@ -376,7 +375,7 @@
   }
 
   function startEdit(month: BudgetMonth, entry: Entry): void {
-    activeMonth = month.month;
+    centerMonth(month.month);
     editingEntryId = entry.id;
     deleteConfirmEntryId = null;
     editDraft = {
@@ -737,6 +736,7 @@
         data-month-card={month.month}
         style={monthThemeStyle(month.month)}
         onclick={(event) => selectCardFromClick(event, month.month)}
+        onfocusin={() => activateMonthForInput(month.month)}
         onkeydown={(event) => selectCardFromKey(event, month.month)}
         role="button"
         tabindex="0"
@@ -769,8 +769,9 @@
           <span class="action-head" aria-label="Acties"></span>
         </div>
 
-        {#each sections as section}
-          <section class:expense-section={section !== "inkomsten"} class:income-section={section === "inkomsten"} class="budget-section" aria-label={SECTION_LABELS[section]}>
+        <div class="month-ledger">
+          {#each sections as section}
+            <section class:expense-section={section !== "inkomsten"} class:income-section={section === "inkomsten"} class="budget-section" aria-label={SECTION_LABELS[section]}>
             <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="section-title">
               {#if section === "inkomsten"}
                 <HandCoins size={16} />
@@ -788,7 +789,7 @@
                 <span class="party-cell">Overdracht</span>
                 <span class="description-text">Resterend van vorige maand</span>
                 <strong class="amount-cell">{formatDecimalCents(total?.startCents ?? 0)}</strong>
-                <span class="locked-row" aria-label="Vaste regel" title="Vaste regel" data-tooltip="Vaste regel"><Lock size={14} aria-hidden="true" /></span>
+                <span class="transfer-spacer actions-cell" aria-hidden="true"></span>
               </div>
             {/if}
 
@@ -1051,8 +1052,9 @@
                 </div>
               {/if}
             {/each}
-          </section>
-        {/each}
+            </section>
+          {/each}
+        </div>
 
         <footer class="month-footer">
           <span class="month-footer-stat">
@@ -1107,7 +1109,7 @@
 
   <footer class="status-bar">
     <span class="status-mode">{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
-    <span class="status-date">{currentDateLabel} <Clock size={14} aria-hidden="true" /> {currentClock}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
+    <span class="status-date">{currentDateLabel} <Clock size={14} aria-hidden="true" /> {currentClock}</span>
   </footer>
 </main>

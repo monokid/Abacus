@@ -526,11 +526,14 @@ h1 {
 .month-card {
   position: relative;
   --ledger-pad: 12px;
-  --ledger-gap: 5px;
+  --ledger-gap: 0px;
   --ledger-amount: 86px;
   --ledger-action: 60px;
   --ledger-columns: minmax(88px, 0.82fr) minmax(150px, 1.55fr) var(--ledger-amount) var(--ledger-action);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   flex: 0 0 480px;
+  height: clamp(540px, calc(100vh - 246px), 740px);
   overflow: hidden;
   border: 1px solid rgba(112, 92, 58, 0.22);
   border-radius: 8px;
@@ -656,6 +659,22 @@ h1 {
   text-transform: uppercase;
 }
 
+.month-ledger {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(105, 87, 53, 0.28) transparent;
+}
+
+.month-ledger::-webkit-scrollbar {
+  width: 7px;
+}
+
+.month-ledger::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(105, 87, 53, 0.24);
+}
+
 .budget-section {
   padding: 0 var(--ledger-pad) 7px;
 }
@@ -665,7 +684,7 @@ h1 {
 .amount-head,
 .action-head {
   min-width: 0;
-  padding-inline: 4px;
+  padding-inline: 7px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -678,6 +697,13 @@ h1 {
 
 .action-head {
   height: 100%;
+  border-left: 1px solid rgba(105, 87, 53, 0.08);
+}
+
+.grid-head > * + *,
+.entry-row > * + *,
+.section-title > * + *,
+.subcategory-row > * + * {
   border-left: 1px solid rgba(105, 87, 53, 0.08);
 }
 
@@ -711,7 +737,7 @@ h1 {
 
 .section-title strong {
   grid-column: 2;
-  padding-inline: 4px;
+  padding-inline: 7px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -719,7 +745,7 @@ h1 {
 
 .section-title span {
   grid-column: 3;
-  padding-inline: 2px;
+  padding-inline: 7px;
 }
 
 .section-title span,
@@ -764,24 +790,25 @@ h1 {
 
 .subcategory-row span {
   grid-column: 1 / 3;
-  padding-inline: 4px;
+  padding-inline: 7px;
 }
 
 .subcategory-row strong {
   grid-column: 3;
-  padding-inline: 2px;
+  padding-inline: 7px;
 }
 
 .subcategory-row .subcategory-add {
   grid-column: 4;
-  justify-self: center;
+  justify-self: stretch;
 }
 
 .subcategory-add {
   min-height: 26px;
-  width: 26px;
+  width: 100%;
   padding: 0;
   color: #48613d;
+  background: rgba(255, 253, 247, 0.46);
 }
 
 .entry-row {
@@ -851,7 +878,7 @@ h1 {
 
 .party-cell {
   min-width: 0;
-  padding-inline: 4px;
+  padding-inline: 7px;
   color: #536047;
   font-weight: 560;
 }
@@ -861,7 +888,7 @@ h1 {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  padding-inline: 4px;
+  padding-inline: 7px;
   color: #1f261d;
 }
 
@@ -875,7 +902,7 @@ h1 {
 .amount-cell,
 .entry-row strong {
   min-width: 0;
-  padding-inline: 2px;
+  padding-inline: 7px;
   text-align: right;
   color: #0c2719;
   font-weight: 760;
@@ -899,10 +926,12 @@ h1 {
 }
 
 .actions-cell,
-.locked-row,
 .subcategory-row .subcategory-add {
-  border-left: 1px solid rgba(105, 87, 53, 0.08);
   background: rgba(255, 253, 247, 0.46);
+}
+
+.transfer-spacer {
+  min-height: 100%;
 }
 
 .row-actions button {
@@ -1404,11 +1433,17 @@ h1 {
 }
 
 .evening .actions-cell,
-.evening .locked-row,
 .evening .subcategory-row .subcategory-add,
 .evening .action-head {
   border-left-color: rgba(219, 190, 118, 0.13);
   background: rgba(255, 255, 255, 0.035);
+}
+
+.evening .grid-head > * + *,
+.evening .entry-row > * + *,
+.evening .section-title > * + *,
+.evening .subcategory-row > * + * {
+  border-left-color: rgba(219, 190, 118, 0.13);
 }
 
 .evening .row-actions button {
@@ -1468,7 +1503,7 @@ h1 {
 .status-bar strong {
   min-width: 0;
   overflow: hidden;
-  text-align: right;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #43563a;
@@ -1480,7 +1515,7 @@ h1 {
 }
 
 .status-date {
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 .evening .status-bar {
@@ -1509,18 +1544,19 @@ h1 {
 
   .month-card {
     --ledger-pad: 8px;
-    --ledger-gap: 4px;
+    --ledger-gap: 0px;
     --ledger-amount: 72px;
     --ledger-action: 58px;
     --ledger-columns: minmax(62px, 0.78fr) minmax(92px, 1.45fr) var(--ledger-amount) var(--ledger-action);
     flex-basis: min(94vw, 430px);
+    height: clamp(500px, calc(100vh - 126px), 700px);
   }
 
   .status-bar {
     right: 0;
     bottom: 0;
     left: 0;
-    grid-template-columns: minmax(74px, 0.7fr) minmax(0, 1.2fr) minmax(86px, 0.82fr);
+    grid-template-columns: minmax(74px, 0.78fr) minmax(92px, 0.9fr) minmax(100px, 1fr);
     gap: 6px;
     padding: 4px 8px;
     font-size: 0.72rem;
@@ -1531,7 +1567,7 @@ h1 {
   }
 
   .status-date {
-    justify-content: center;
+    justify-content: flex-end;
   }
 }
 

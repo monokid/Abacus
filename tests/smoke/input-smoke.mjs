@@ -49,6 +49,7 @@ try {
   await expectCurrentMonthIndicator(page);
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "eerste laadbeurt");
+  await expectMonthFootersAligned(page, "eerste laadbeurt");
   await expectBrandReturnsToCurrentMonth(page);
   await expectModeSwitchSeparatesDemo(page);
   await expectTooltips(page);
@@ -56,7 +57,8 @@ try {
   await expectDistinctSectionIcons(page);
   await expectSectionColorScales(page);
   await expectCarryBalanceInIncomeGrid(page);
-  await expectIconOnlyLockedRows(page);
+  await expectNoTransferLocks(page);
+  await expectSpreadsheetColumnDividers(page);
   await expectNoMonthNumberLabels(page);
   await expectQuietActionHeaders(page);
   await expectCategoryInputs(page);
@@ -111,6 +113,8 @@ try {
   await page.getByRole("button", { name: /Naar jaareinde/i }).click();
   await expectActiveMonthVisible(page, 12);
   await expectActiveCardCenteredEnough(page, 12);
+  await navigateToMonth(page, 9);
+  await expectOtherMonthButtonCentersCard(page, 10);
   await navigateToMonth(page, 9);
   await fillExpense(page, {
     party: "Testwinkel",
@@ -326,7 +330,9 @@ async function auditResponsiveViewports(browser) {
     await expectCurrentMonthIndicator(page);
     await expectSeasonalMonthBadges(page);
     await expectMonthFooterSummaries(page, `${viewport.width}x${viewport.height}`);
+    await expectMonthFootersAligned(page, `${viewport.width}x${viewport.height}`);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
+    await expectSpreadsheetColumnDividers(page);
     await expectSavedRowActionColumnSnug(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
     await expectLedgerBreathingRoom(page, `${viewport.width}x${viewport.height}`);
@@ -352,8 +358,10 @@ async function auditDarkMode(browser) {
   await expectCurrentMonthIndicator(page);
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "donkere modus");
+  await expectMonthFootersAligned(page, "donkere modus");
   await expectSectionColorScales(page);
   await expectMonthHeaderLayout(page, "donkere modus");
+  await expectSpreadsheetColumnDividers(page);
   await expectSavedRowActionColumnSnug(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
@@ -696,6 +704,28 @@ async function navigateWithCardButton(page, fromMonthNumber, buttonName, expecte
   await expectMonthTabsVisible(page, `${buttonName} vanaf maand ${fromMonthNumber}`);
 }
 
+async function expectOtherMonthButtonCentersCard(page, monthNumber) {
+  const card = page.locator(`[data-month-card="${monthNumber}"]`);
+  await card.locator('.entry-row:not(.carry-entry) button[aria-label^="Regel bewerken"]').first().click();
+  await page.waitForFunction(
+    (targetMonthNumber) => {
+      const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      const focused = document.activeElement;
+      return (
+        activeCard instanceof HTMLElement &&
+        activeCard.classList.contains("active-card") &&
+        focused instanceof HTMLElement &&
+        focused.closest(".month-card") === activeCard
+      );
+    },
+    monthNumber,
+    { timeout: 5_000 },
+  );
+  await expectActiveMonthVisible(page, monthNumber);
+  await expectActiveCardCenteredEnough(page, monthNumber);
+  await card.getByLabel("Bewerken annuleren").click();
+}
+
 async function expectMonthCardFocused(page, monthNumber) {
   const issue = await page.evaluate((targetMonthNumber) => {
     const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
@@ -925,6 +955,11 @@ async function expectTaskbarTime(page) {
     if (statusRect.height > maxHeight) return `Statusbalk is te hoog (${Math.round(statusRect.height)}px).`;
 
     const children = Array.from(statusBar.children).filter((child) => child instanceof HTMLElement);
+    if (children.length !== 3) return "Statusbalk heeft niet exact drie zones.";
+    if (!children[1]?.textContent?.includes("geselecteerd")) return "Geselecteerde maand staat niet in het midden.";
+    if (!children[2]?.classList.contains("status-date")) return "Datum en tijd staan niet rechts.";
+    if (getComputedStyle(children[1]).textAlign !== "center") return "Geselecteerde maand is niet centraal uitgelijnd.";
+    if (getComputedStyle(children[2]).justifyContent !== "flex-end") return "Datum en tijd zijn niet rechts uitgelijnd.";
     const tops = children.map((child) => child.getBoundingClientRect().top);
     if (Math.max(...tops) - Math.min(...tops) > 4) return "Statusbalk valt uiteen in meerdere regels.";
     return "";
@@ -1136,22 +1171,19 @@ async function expectCarryBalanceInIncomeGrid(page) {
   if (issue) throw new Error(`Overdrachtcontrole faalde: ${issue}`);
 }
 
-async function expectIconOnlyLockedRows(page) {
+async function expectNoTransferLocks(page) {
   const issue = await page.evaluate(() => {
-    const lockedRows = Array.from(document.querySelectorAll(".locked-row"));
-    if (lockedRows.length === 0) return "Geen vaste-regel-slotjes gevonden.";
-
-    for (const row of lockedRows) {
-      if (!(row instanceof HTMLElement)) continue;
-      if ((row.textContent ?? "").trim()) return "Vaste regel toont nog tekst naast het slotje.";
-      if (!row.querySelector("svg")) return "Vaste regel mist het sloticoon.";
-      if (!row.getAttribute("aria-label")) return "Vaste regel mist een toegankelijke naam.";
+    for (const transferRow of Array.from(document.querySelectorAll("[data-transfer-row='true']"))) {
+      if (!(transferRow instanceof HTMLElement)) continue;
+      if (transferRow.querySelector(".locked-row, svg")) return "Overdracht toont nog een slotje.";
+      const spacer = transferRow.querySelector(".transfer-spacer");
+      if (!(spacer instanceof HTMLElement)) return "Overdracht mist een lege actiecel voor grid-uitlijning.";
     }
 
     return "";
   });
 
-  if (issue) throw new Error(`Vaste-regelcontrole faalde: ${issue}`);
+  if (issue) throw new Error(`Overdracht-slotcontrole faalde: ${issue}`);
 }
 
 async function expectQuietActionHeaders(page) {
@@ -1192,6 +1224,37 @@ async function expectExcelNumberAlignment(page) {
   });
 
   if (issue) throw new Error(`Excel-uitlijning faalde: ${issue}`);
+}
+
+async function expectSpreadsheetColumnDividers(page) {
+  const issues = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll(".month-card .grid-head, .month-card .entry-row, .month-card .subcategory-row, .month-card .section-title")).filter(
+      (row) => {
+        if (!(row instanceof HTMLElement)) return false;
+        const rect = row.getBoundingClientRect();
+        return rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+      },
+    );
+
+    return rows.flatMap((row, index) => {
+      if (!(row instanceof HTMLElement)) return [];
+      const cells = Array.from(row.children).filter((child) => child instanceof HTMLElement);
+      if (cells.length < 3) return [];
+      const rowIssues = [];
+      for (const cell of cells.slice(1)) {
+        const style = getComputedStyle(cell);
+        if (style.borderLeftStyle === "none" || Number.parseFloat(style.borderLeftWidth || "0") < 1) {
+          rowIssues.push(`Rij ${index + 1}: mist verticale kolomlijn.`);
+          break;
+        }
+      }
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Spreadsheet-kolomcontrole faalde:\n${issues.join("\n")}`);
+  }
 }
 
 async function expectSavedRowActionColumnSnug(page, label) {
@@ -1484,6 +1547,30 @@ async function expectMonthFooterSummaries(page, label) {
   if (issues.length > 0) {
     throw new Error(`Maandtotalencontrole faalde (${label}):\n${issues.join("\n")}`);
   }
+}
+
+async function expectMonthFootersAligned(page, label) {
+  const issue = await page.evaluate(() => {
+    const footers = Array.from(document.querySelectorAll(".month-card .month-footer")).filter((footer) => {
+      if (!(footer instanceof HTMLElement)) return false;
+      const card = footer.closest(".month-card");
+      const rect = footer.getBoundingClientRect();
+      const cardRect = card instanceof HTMLElement ? card.getBoundingClientRect() : null;
+      return cardRect && cardRect.right > 0 && cardRect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+
+    if (footers.length < 2) return "";
+    const tops = footers.map((footer) => footer.getBoundingClientRect().top);
+    const bottoms = footers.map((footer) => footer.getBoundingClientRect().bottom);
+    const topDelta = Math.max(...tops) - Math.min(...tops);
+    const bottomDelta = Math.max(...bottoms) - Math.min(...bottoms);
+    if (topDelta > 3 || bottomDelta > 3) {
+      return `Maandtotalen staan niet gelijk (${Math.round(topDelta)}px boven, ${Math.round(bottomDelta)}px onder).`;
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Maandtotalen-uitlijncontrole faalde (${label}): ${issue}`);
 }
 
 async function expectNoMonthNumberLabels(page) {
