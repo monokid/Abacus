@@ -213,7 +213,7 @@
 
     requestAnimationFrame(() => {
       scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`, resetVertical);
-      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
+      keepRailItemVisible(".month-tabs", `[data-month-tab="${monthNumber}"]`);
       if (focusCard) {
         const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
         if (card instanceof HTMLElement) card.focus({ preventScroll: true });
@@ -253,6 +253,27 @@
       top: resetVertical ? 0 : rail.scrollTop,
       behavior: "instant",
     });
+  }
+
+  function keepRailItemVisible(railSelector: string, itemSelector: string): void {
+    const rail = document.querySelector(railSelector);
+    const item = document.querySelector(itemSelector);
+    if (!(rail instanceof HTMLElement) || !(item instanceof HTMLElement)) return;
+
+    const railRect = rail.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const inset = 10;
+    if (itemRect.left < railRect.left + inset) {
+      rail.scrollTo({
+        left: rail.scrollLeft + itemRect.left - railRect.left - inset,
+        behavior: "instant",
+      });
+    } else if (itemRect.right > railRect.right - inset) {
+      rail.scrollTo({
+        left: rail.scrollLeft + itemRect.right - railRect.right + inset,
+        behavior: "instant",
+      });
+    }
   }
 
   function selectCardFromClick(event: MouseEvent, monthNumber: number): void {

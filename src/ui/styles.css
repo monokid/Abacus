@@ -737,12 +737,11 @@ h1 {
 
 .month-header {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  grid-template-areas:
-    "image title"
-    "image tools";
+  grid-template-columns: 150px minmax(0, 1fr) 150px;
+  grid-template-areas: "image title tools";
   gap: 6px 10px;
   align-items: center;
+  min-height: 136px;
   padding: 8px 12px;
   border-bottom: 1px solid rgba(115, 94, 61, 0.18);
   background:
@@ -754,6 +753,7 @@ h1 {
   grid-area: tools;
   display: flex;
   justify-content: flex-end;
+  align-self: center;
   gap: 4px;
 }
 
@@ -769,8 +769,8 @@ h1 {
 
 .month-header img {
   grid-area: image;
-  width: 104px;
-  height: 104px;
+  width: 142px;
+  height: 128px;
   object-fit: contain;
   align-self: center;
   filter: drop-shadow(0 8px 10px rgba(65, 51, 26, 0.14));
@@ -778,11 +778,16 @@ h1 {
 
 .month-title {
   grid-area: title;
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   min-width: 0;
   align-self: center;
+  justify-self: center;
+  text-align: center;
+  z-index: 1;
 }
 
 .current-card-sun {
@@ -1841,14 +1846,15 @@ h1 {
   }
 
   .month-header {
-    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-columns: 108px minmax(0, 1fr) 138px;
+    min-height: 108px;
     padding-top: 6px;
     padding-bottom: 6px;
   }
 
   .month-header img {
-    width: 74px;
-    height: 74px;
+    width: 104px;
+    height: 96px;
   }
 
   .month-header h2 {
@@ -1894,19 +1900,24 @@ h1 {
   }
 
   .month-header {
-    grid-template-columns: 94px minmax(0, 1fr);
+    grid-template-columns: 116px minmax(0, 1fr);
     grid-template-areas:
       "image title"
-      "image tools";
+      "tools tools";
+    min-height: 142px;
+  }
+
+  .month-title {
+    grid-column: title;
   }
 
   .month-header img {
-    width: 92px;
-    height: 92px;
+    width: 112px;
+    height: 108px;
   }
 
   .month-tools {
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .grid-head,
