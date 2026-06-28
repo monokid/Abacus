@@ -208,11 +208,11 @@
     return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist}; --month-sun: ${theme.sun}; --month-sun-soft: ${theme.sunSoft};`;
   }
 
-  function centerMonth(monthNumber: number, focusCard = false): void {
+  function centerMonth(monthNumber: number, focusCard = false, resetVertical = false): void {
     activeMonth = monthNumber;
 
     requestAnimationFrame(() => {
-      scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
+      scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`, resetVertical);
       scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
       if (focusCard) {
         const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
@@ -222,7 +222,7 @@
   }
 
   function selectMonth(monthNumber: number): void {
-    centerMonth(monthNumber, true);
+    centerMonth(monthNumber, true, true);
   }
 
   function selectCurrentMonth(): void {
@@ -241,7 +241,7 @@
     centerMonth(monthNumber);
   }
 
-  function scrollRailToItem(railSelector: string, itemSelector: string): void {
+  function scrollRailToItem(railSelector: string, itemSelector: string, resetVertical = false): void {
     const rail = document.querySelector(railSelector);
     const item = document.querySelector(itemSelector);
     if (!(rail instanceof HTMLElement) || !(item instanceof HTMLElement)) return;
@@ -250,6 +250,7 @@
     const itemRect = item.getBoundingClientRect();
     rail.scrollTo({
       left: rail.scrollLeft + itemRect.left - railRect.left - (rail.clientWidth - item.clientWidth) / 2,
+      top: resetVertical ? 0 : rail.scrollTop,
       behavior: "instant",
     });
   }
@@ -648,6 +649,12 @@
       </div>
     </button>
 
+    <section class="year-menu-card" aria-label="Jaaroverzicht">
+      <strong>{selectedYear.year}</strong>
+      <span>Start {formatMoneyCents(selectedYear.startBalanceCents)}</span>
+      <span>Eind {formatMoneyCents(totals.endCents)}</span>
+    </section>
+
     <nav class="toolbar" aria-label="Hoofdnavigatie">
       <button class:active={activeView === "year"} class="tool" type="button" title="Jaaroverzicht" data-tooltip="Jaaroverzicht" onclick={() => (activeView = "year")}><CalendarDays size={16} /><span class="tool-label">Jaar</span></button>
       <button class:active={activeView === "edit"} class="tool" type="button" title="Bewerken" data-tooltip="Bewerken" onclick={() => (activeView = "edit")}><RotateCcw size={16} /><span class="tool-label">Bewerken</span></button>
@@ -655,12 +662,6 @@
       <button class:active={activeView === "safety"} class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid" onclick={() => (activeView = "safety")}><Shield size={16} /><span class="tool-label">Veiligheid</span></button>
       <button class:active={activeView === "history"} class="tool" type="button" title="Historiek" data-tooltip="Historiek" onclick={() => (activeView = "history")}><History size={16} /><span class="tool-label">Historiek</span></button>
     </nav>
-
-    <section class="year-menu-card" aria-label="Jaaroverzicht">
-      <strong>{selectedYear.year}</strong>
-      <span>Start {formatMoneyCents(selectedYear.startBalanceCents)}</span>
-      <span>Eind {formatMoneyCents(totals.endCents)}</span>
-    </section>
 
     <div class="header-actions">
       <button class="icon-button" type="button" aria-label="Weergave wisselen" title="Weergave wisselen" data-tooltip="Weergave wisselen" onclick={() => (evening = !evening)}>

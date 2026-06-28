@@ -81,11 +81,15 @@ try {
   await expectDraftPanelsContained(page, "tab naar plusknop");
   await expectExcelScrollbarsUsable(page, "eerste laadbeurt");
   await expectGlobalScrollbarTheme(page, "eerste laadbeurt");
-  await expectMonthLedgerScrollbarsQuiet(page);
-  await expectLedgerCanScrollClearOfFooter(page, "eerste laadbeurt");
+  await expectNoNestedMonthLedgerVerticalScrollbars(page);
+  await expectBoardCanScrollCardsClearOfFooter(page, "eerste laadbeurt");
+  await expectMonthCardsCanGrowBeyondViewport(page, "eerste laadbeurt");
   await expectCompactLedgerRows(page, "eerste laadbeurt");
   await expectAlternatingLedgerTints(page, "eerste laadbeurt");
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    const board = document.querySelector(".board");
+    if (board instanceof HTMLElement) board.scrollTop = 0;
+  });
   await expectMonthTabsVisible(page, "na terug naar bovenzijde");
   await navigateToMonth(page, 9);
   await expectActiveMonthVisible(page, 9);
@@ -344,8 +348,9 @@ async function auditResponsiveViewports(browser) {
     await expectSpreadsheetColumnDividers(page);
     await expectExcelScrollbarsUsable(page, `${viewport.width}x${viewport.height}`);
     await expectGlobalScrollbarTheme(page, `${viewport.width}x${viewport.height}`);
-    await expectMonthLedgerScrollbarsQuiet(page);
-    await expectLedgerCanScrollClearOfFooter(page, `${viewport.width}x${viewport.height}`);
+    await expectNoNestedMonthLedgerVerticalScrollbars(page);
+    await expectBoardCanScrollCardsClearOfFooter(page, `${viewport.width}x${viewport.height}`);
+    await expectMonthCardsCanGrowBeyondViewport(page, `${viewport.width}x${viewport.height}`);
     await expectCompactLedgerRows(page, `${viewport.width}x${viewport.height}`);
     await expectAlternatingLedgerTints(page, `${viewport.width}x${viewport.height}`);
     if (viewport.width >= 1200) await expectFullscreenWorkspace(page, `${viewport.width}x${viewport.height}`);
@@ -379,8 +384,9 @@ async function auditDarkMode(browser) {
   await expectSectionColorScales(page);
   await expectMonthHeaderLayout(page, "donkere modus");
   await expectSpreadsheetColumnDividers(page);
-  await expectMonthLedgerScrollbarsQuiet(page);
-  await expectLedgerCanScrollClearOfFooter(page, "donkere modus");
+  await expectNoNestedMonthLedgerVerticalScrollbars(page);
+  await expectBoardCanScrollCardsClearOfFooter(page, "donkere modus");
+  await expectMonthCardsCanGrowBeyondViewport(page, "donkere modus");
   await expectSavedRowActionColumnSnug(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
@@ -827,6 +833,14 @@ async function expectActiveMonthTabProminent(page, monthNumber) {
     const style = getComputedStyle(activeTab);
     if (style.boxShadow === "none") return "Actieve maandknop heeft geen duidelijke selectie.";
 
+    const tabs = document.querySelector('[data-testid="month-tabs"]');
+    if (!(tabs instanceof HTMLElement)) return "Maandbalk ontbreekt.";
+    const tabRect = activeTab.getBoundingClientRect();
+    const tabsRect = tabs.getBoundingClientRect();
+    const tabCenter = tabRect.left + tabRect.width / 2;
+    const tabsCenter = tabsRect.left + tabsRect.width / 2;
+    if (Math.abs(tabCenter - tabsCenter) > 150) return "Actieve maandknop blijft niet rond het midden van de maandbalk.";
+
     const markerStyle = getComputedStyle(activeTab, "::after");
     if (!markerStyle.content || markerStyle.content === "none") return "Actieve maandknop mist visuele markering.";
     if (Number.parseFloat(markerStyle.bottom || "0") > 4) return "Actieve maandlijn staat te hoog en loopt door het bedrag.";
@@ -844,9 +858,16 @@ async function expectCompactTopUi(page) {
     const monthTabs = document.querySelector('[data-testid="month-tabs"]');
     const primaryAction = document.querySelector(".primary-action");
     const yearMenuCard = document.querySelector(".year-menu-card");
+    const header = document.querySelector(".app-header");
+    const toolbar = document.querySelector(".toolbar");
     if (!(firstCard instanceof HTMLElement) || !(monthTabs instanceof HTMLElement)) return "Maandkaart of maandbalk ontbreekt.";
     if (!(primaryAction instanceof HTMLElement)) return "Overzichtknop ontbreekt.";
     if (!(yearMenuCard instanceof HTMLElement)) return "Jaarkaart in het menu ontbreekt.";
+    if (!(header instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) return "Header of navigatie ontbreekt.";
+    if (yearMenuCard.parentElement !== header) return "Jaarkaart staat niet in de header.";
+    const children = Array.from(header.children);
+    if (children.indexOf(yearMenuCard) > children.indexOf(toolbar)) return "Jaarkaart staat rechts van de hoofdnavigatie.";
+    if (yearMenuCard.getBoundingClientRect().left >= toolbar.getBoundingClientRect().left) return "Jaarkaart staat visueel niet links van het menu.";
     if (document.querySelector(".year-strip")) return "Oude jaarstatistiekrij staat nog in de hoofdinterface.";
     if (!yearMenuCard.textContent?.includes("2026") || !yearMenuCard.textContent?.includes("Start") || !yearMenuCard.textContent?.includes("Eind")) {
       return "Jaarkaart toont jaar, startsaldo en eindinzicht niet compact.";
@@ -1670,16 +1691,26 @@ async function expectExcelScrollbarsUsable(page, label) {
     if (!(activeCard instanceof HTMLElement)) return "Actieve maandkaart ontbreekt.";
 
     const boardStyle = getComputedStyle(board);
-    if (boardStyle.scrollbarWidth === "none") return "Maandwerkvlak verbergt de horizontale scrollbar.";
+    if (boardStyle.scrollbarWidth === "none") return "Maandwerkvlak verbergt de scrollbars.";
+    if (!["auto", "scroll", "overlay"].includes(boardStyle.overflowX)) return `Maandwerkvlak heeft geen horizontale scroll (${boardStyle.overflowX}).`;
+    if (!["auto", "scroll", "overlay"].includes(boardStyle.overflowY)) return `Maandwerkvlak heeft geen verticale scroll (${boardStyle.overflowY}).`;
     if (board.scrollWidth <= board.clientWidth + 8) return "Maandwerkvlak heeft geen horizontale scrollruimte.";
+    if (board.scrollHeight <= board.clientHeight + 8) return "Maandwerkvlak heeft geen verticale scrollruimte voor groeiende maandkaarten.";
 
     const originalScrollLeft = board.scrollLeft;
+    const originalScrollTop = board.scrollTop;
     board.scrollLeft = 0;
     const left = board.scrollLeft;
     board.scrollLeft = board.scrollWidth;
     const right = board.scrollLeft;
+    board.scrollTop = 0;
+    const top = board.scrollTop;
+    board.scrollTop = board.scrollHeight;
+    const bottom = board.scrollTop;
     board.scrollLeft = originalScrollLeft;
+    board.scrollTop = originalScrollTop;
     if (right <= left + 40) return "Horizontale scrollbar beweegt niet bruikbaar.";
+    if (bottom <= top + 40) return "Verticale scrollbar beweegt niet bruikbaar.";
 
     const cardRect = activeCard.getBoundingClientRect();
     if (cardRect.width <= 0 || cardRect.height <= 0) return "Actieve maandkaart is niet zichtbaar na scrollbarcontrole.";
@@ -1694,7 +1725,7 @@ async function expectExcelScrollbarsUsable(page, label) {
     return "";
   });
 
-    if (issue) throw new Error(`Excel-scrollcontrole faalde (${label}): ${issue}`);
+  if (issue) throw new Error(`Excel-scrollcontrole faalde (${label}): ${issue}`);
 }
 
 async function expectGlobalScrollbarTheme(page, label) {
@@ -1790,7 +1821,7 @@ async function expectFullscreenWorkspace(page, label) {
   if (issue) throw new Error(`Fullscreencontrole faalde (${label}): ${issue}`);
 }
 
-async function expectMonthLedgerScrollbarsQuiet(page) {
+async function expectNoNestedMonthLedgerVerticalScrollbars(page) {
   const issue = await page.evaluate(() => {
     const ledgers = Array.from(document.querySelectorAll(".month-ledger"));
     if (ledgers.length === 0) return "Maandledger ontbreekt.";
@@ -1799,10 +1830,15 @@ async function expectMonthLedgerScrollbarsQuiet(page) {
       const rect = ledger.getBoundingClientRect();
       if (rect.right <= 0 || rect.left >= window.innerWidth) continue;
       const style = getComputedStyle(ledger);
-      if (style.scrollbarWidth !== "thin") return "Maandkaart gebruikt geen subtiele interne scrollbar.";
+      if (["auto", "scroll", "overlay"].includes(style.overflowY)) return "Maandledger heeft opnieuw een eigen verticale scrollbar.";
+      if (style.scrollbarWidth === "thin") return "Maandledger bewaart nog styling voor een interne scrollbar.";
       if (style.maskImage !== "none" || style.webkitMaskImage !== "none") return "Maandledger maskeert/fadet regels onderaan.";
-      const paddingBottom = Number.parseFloat(style.paddingBottom || "0");
-      if (paddingBottom < 64) return "Maandledger heeft te weinig onderruimte boven de vaste totalen.";
+      const originalScrollTop = ledger.scrollTop;
+      ledger.scrollTop = 80;
+      const moved = ledger.scrollTop !== originalScrollTop;
+      ledger.scrollTop = originalScrollTop;
+      if (moved) return "Maandledger kan intern verticaal scrollen.";
+      if (ledger.scrollHeight > ledger.clientHeight + 4) return "Maandledger kapt verticale inhoud af in plaats van de kaart te laten groeien.";
     }
     return "";
   });
@@ -1810,37 +1846,64 @@ async function expectMonthLedgerScrollbarsQuiet(page) {
   if (issue) throw new Error(`Maandledger-scrollcontrole faalde: ${issue}`);
 }
 
-async function expectLedgerCanScrollClearOfFooter(page, label) {
+async function expectBoardCanScrollCardsClearOfFooter(page, label) {
   const issue = await page.evaluate(() => {
-    const ledgers = Array.from(document.querySelectorAll(".month-ledger")).filter((ledger) => {
-      if (!(ledger instanceof HTMLElement)) return false;
-      const rect = ledger.getBoundingClientRect();
-      return rect.right > 0 && rect.left < window.innerWidth && ledger.scrollHeight > ledger.clientHeight + 8;
-    });
-    if (ledgers.length === 0) return "";
+    const board = document.querySelector(".board");
+    const activeCard = document.querySelector(".month-card.active-card");
+    const statusBar = document.querySelector(".status-bar");
+    if (!(board instanceof HTMLElement) || !(activeCard instanceof HTMLElement) || !(statusBar instanceof HTMLElement)) {
+      return "Werkvlak, actieve kaart of footer ontbreekt.";
+    }
 
-    for (const ledger of ledgers) {
-      if (!(ledger instanceof HTMLElement)) continue;
-      const originalScrollTop = ledger.scrollTop;
-      ledger.scrollTop = ledger.scrollHeight;
-      const ledgerRect = ledger.getBoundingClientRect();
-      const rows = Array.from(ledger.querySelectorAll(".entry-row, .subcategory-row")).filter((row) => {
-        if (!(row instanceof HTMLElement)) return false;
-        const rect = row.getBoundingClientRect();
-        return rect.bottom > ledgerRect.top && rect.top < ledgerRect.bottom;
-      });
-      const lastRow = rows.at(-1);
-      const lastRect = lastRow instanceof HTMLElement ? lastRow.getBoundingClientRect() : null;
-      ledger.scrollTop = originalScrollTop;
-      if (!lastRect) return "Geen laatste zichtbare rij gevonden na scrollen.";
-      if (lastRect.bottom > ledgerRect.bottom - 56) {
-        return "Laatste ledger-rij kan niet ruim boven de vaste maandtotalen komen.";
-      }
+    const originalScrollTop = board.scrollTop;
+    board.scrollTop = board.scrollHeight;
+    const boardRect = board.getBoundingClientRect();
+    const statusRect = statusBar.getBoundingClientRect();
+    const cardRect = activeCard.getBoundingClientRect();
+    const cardFooter = activeCard.querySelector(".month-footer");
+    const footerRect = cardFooter instanceof HTMLElement ? cardFooter.getBoundingClientRect() : null;
+    board.scrollTop = originalScrollTop;
+
+    if (boardRect.bottom > statusRect.top + 2) return "Maandwerkvlak loopt onder de vaste appfooter.";
+    if (!footerRect) return "Maandfooter ontbreekt.";
+    if (footerRect.bottom > boardRect.bottom + 1) return "Maandfooter is niet bereikbaar via de board-scroll.";
+    if (cardRect.height <= board.clientHeight + 8) return "Actieve maandkaart groeit niet voorbij het zichtbare werkvlak.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Board-scroll-eindcontrole faalde (${label}): ${issue}`);
+}
+
+async function expectMonthCardsCanGrowBeyondViewport(page, label) {
+  const issue = await page.evaluate(() => {
+    const board = document.querySelector(".board");
+    const visibleCards = Array.from(document.querySelectorAll(".month-card")).filter((card) => {
+      if (!(card instanceof HTMLElement)) return false;
+      const rect = card.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+    if (!(board instanceof HTMLElement)) return "Maandwerkvlak ontbreekt.";
+    if (visibleCards.length === 0) return "Geen zichtbare maandkaarten.";
+
+    for (const card of visibleCards) {
+      if (!(card instanceof HTMLElement)) continue;
+      const style = getComputedStyle(card);
+      if (style.height.includes("calc(100%")) return "Maandkaart gebruikt opnieuw een viewport-afgeleide vaste hoogte.";
+      if (style.overflowY === "auto" || style.overflowY === "scroll") return "Maandkaart heeft een eigen verticale scrollbar.";
+    }
+
+    const tallest = visibleCards.reduce((best, card) => {
+      if (!(card instanceof HTMLElement)) return best;
+      return card.getBoundingClientRect().height > best.getBoundingClientRect().height ? card : best;
+    }, visibleCards[0]);
+    if (!(tallest instanceof HTMLElement)) return "Geen hoogste maandkaart gevonden.";
+    if (tallest.getBoundingClientRect().height <= board.clientHeight + 8) {
+      return "Zichtbare maandkaarten blijven binnen de viewport geklemd.";
     }
     return "";
   });
 
-  if (issue) throw new Error(`Maandledger-eindcontrole faalde (${label}): ${issue}`);
+  if (issue) throw new Error(`Groei-controle maandkaarten faalde (${label}): ${issue}`);
 }
 
 async function captureScreenshot(page, filename) {
