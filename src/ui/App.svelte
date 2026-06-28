@@ -18,6 +18,7 @@
     Settings,
     Shield,
     Sun,
+    Trash2,
     X,
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
@@ -56,6 +57,7 @@
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
   let editingEntryId = $state<string | null>(null);
+  let deleteConfirmEntryId = $state<string | null>(null);
   let editDraft = $state<DraftEntry>(emptyDraft());
   let storageReady = $state(false);
   let saveStatus = $state("Voorbeeldgegevens");
@@ -239,6 +241,7 @@
   function startEdit(month: BudgetMonth, entry: Entry): void {
     activeMonth = month.month;
     editingEntryId = entry.id;
+    deleteConfirmEntryId = null;
     editDraft = {
       party: entry.party,
       description: entry.description,
@@ -267,12 +270,30 @@
     entry.description = editDraft.description.trim() || "Nieuwe regel";
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
     editingEntryId = null;
+    deleteConfirmEntryId = null;
     editDraft = emptyDraft();
   }
 
   function cancelEdit(): void {
     editingEntryId = null;
+    deleteConfirmEntryId = null;
     editDraft = emptyDraft();
+  }
+
+  function requestDelete(entry: Entry): void {
+    deleteConfirmEntryId = entry.id;
+  }
+
+  function cancelDelete(): void {
+    deleteConfirmEntryId = null;
+  }
+
+  function deleteEntry(month: BudgetMonth, entry: Entry): void {
+    const index = month.entries.findIndex((item) => item.id === entry.id);
+    if (index < 0) return;
+
+    month.entries.splice(index, 1);
+    cancelEdit();
   }
 
   function maybeHandleDraftKey(event: KeyboardEvent, month: BudgetMonth, section: Section, subcategoryId: string): void {
@@ -569,6 +590,18 @@
                         <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                       </span>
                     </div>
+                    {#if deleteConfirmEntryId === entry.id}
+                      <div class="delete-confirm-row" data-testid={`delete-confirm-${entry.id}`}>
+                        <span>Deze regel verwijderen?</span>
+                        <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
+                        <button type="button" aria-label="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
+                      </div>
+                    {:else}
+                      <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} onclick={() => requestDelete(entry)}>
+                        <Trash2 size={15} />
+                        Verwijderen
+                      </button>
+                    {/if}
                   {:else}
                     <div class="entry-row" data-entry-row={entry.id}>
                       <span>{entry.party || "-"}</span>
@@ -621,6 +654,18 @@
                     <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                   </span>
                 </div>
+                {#if deleteConfirmEntryId === entry.id}
+                  <div class="delete-confirm-row" data-testid={`delete-confirm-${entry.id}`}>
+                    <span>Deze regel verwijderen?</span>
+                    <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
+                    <button type="button" aria-label="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
+                  </div>
+                {:else}
+                  <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} onclick={() => requestDelete(entry)}>
+                    <Trash2 size={15} />
+                    Verwijderen
+                  </button>
+                {/if}
               {:else}
                 <div class="entry-row" data-entry-row={entry.id}>
                   <span>{entry.party || "-"}</span>

@@ -112,10 +112,12 @@ try {
   await cancelExpenseEdit(page);
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectHiddenText(page, "Niet bewaren rooktest");
+  await deleteVariableRow(page);
+  await expectHiddenText(page, "Klik weg rooktest");
 
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Test uitgave rooktest");
-  await expectVisibleText(page, "Klik weg rooktest");
+  await expectHiddenText(page, "Klik weg rooktest");
   await expectVisibleText(page, "Pensioenfonds aangepast");
   await expectVisibleText(page, "Inkomen aangepast rooktest");
   await expectDraftPanelsContained(page, "na verversen");
@@ -209,6 +211,19 @@ async function cancelExpenseEdit(page) {
   await expectEditRowsContained(page, "uitgaveregel bewerken");
   await editRow.locator('input[aria-label^="Omschrijving bewerken"]').fill("Niet bewaren rooktest");
   await editRow.locator('input[aria-label^="Omschrijving bewerken"]').press("Escape");
+}
+
+async function deleteVariableRow(page) {
+  await page.getByLabel("Regel bewerken: Klik weg rooktest").click();
+  await page.getByLabel("Verwijderen voorbereiden: Klik weg rooktest").click();
+  await expectVisibleText(page, "Deze regel verwijderen?");
+  await expectDeleteConfirmRowsContained(page, "verwijdering voorbereiden");
+  await captureScreenshot(page, "05-delete-confirm-row.png");
+
+  await page.getByLabel("Verwijderen annuleren").click();
+  await expectHiddenText(page, "Deze regel verwijderen?");
+  await page.getByLabel("Verwijderen voorbereiden: Klik weg rooktest").click();
+  await page.getByLabel("Verwijderen bevestigen").click();
 }
 
 async function expectIncomeDraftTabOrder(page, monthNumber) {
@@ -310,6 +325,40 @@ async function expectEditRowsContained(page, label) {
 
   if (issues.length > 0) {
     throw new Error(`Visuele bewerkcontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+}
+
+async function expectDeleteConfirmRowsContained(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    return Array.from(document.querySelectorAll(".delete-confirm-row")).flatMap((row, index) => {
+      const card = row.closest(".month-card");
+      if (!card) return [`Verwijderrij ${index + 1}: geen maandkaart gevonden.`];
+
+      const rowRect = row.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const rowIssues = [];
+
+      if (row.scrollWidth > row.clientWidth + tolerance) {
+        rowIssues.push(`Verwijderrij ${index + 1}: inhoud is breder dan de rij.`);
+      }
+      if (rowRect.left < cardRect.left - tolerance || rowRect.right > cardRect.right + tolerance) {
+        rowIssues.push(`Verwijderrij ${index + 1}: rij valt buiten de maandkaart.`);
+      }
+
+      for (const child of Array.from(row.children)) {
+        const childRect = child.getBoundingClientRect();
+        if (childRect.left < rowRect.left - tolerance || childRect.right > rowRect.right + tolerance) {
+          rowIssues.push(`Verwijderrij ${index + 1}: tekst of knop valt buiten de rij.`);
+        }
+      }
+
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Visuele verwijdercontrole faalde (${label}):\n${issues.join("\n")}`);
   }
 }
 
