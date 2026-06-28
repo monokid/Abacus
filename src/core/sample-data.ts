@@ -1,43 +1,25 @@
-import type { Book, Entry } from "./model";
+import type { Book, Entry, RecurringRule } from "./model";
 import { createEmptyBook } from "./model";
+import { datesFor, expandTemplate } from "./recurring";
+
+const DEMO_YEAR = 2026;
 
 export function fictionalSampleBook(): Book {
-  const book = createEmptyBook(2026);
+  const book = createEmptyBook(DEMO_YEAR);
   const year = book.years[0];
   if (!year) return book;
 
   year.startBalanceCents = 221_881;
+  book.recurringRules = fictionalRecurringRules();
 
   let order = 1;
-  for (const month of year.months) {
-    const monthNumber = month.month;
-    month.entries = [
-      entry(`m${monthNumber}-income-pension`, "inkomsten", "sub-ink-pensioen", monthNumber, "Pensioendienst", "Pensioen", 233_259, order++),
-      entry(`m${monthNumber}-income-small-pension`, "inkomsten", "sub-ink-pensioen", monthNumber, "Pensioenkas", "Aanvullend pensioen", 6_331, order++),
-      entry(`m${monthNumber}-rent`, "vaste_kosten", "sub-vast-wonen", monthNumber, "Woonfonds", "Huur", 82_000, order++),
-      entry(`m${monthNumber}-energy`, "vaste_kosten", "sub-vast-energie", monthNumber, "Luminus", "Voorschot energie", 15_431, order++),
-      entry(`m${monthNumber}-telecom`, "vaste_kosten", "sub-vast-telecom", monthNumber, "Telenet", "Internet en telefoon", 7_643, order++),
-      entry(`m${monthNumber}-bank`, "vaste_kosten", "sub-vast-bank", monthNumber, "Bank", "Rekeningkosten", 475, order++),
-      entry(`m${monthNumber}-reserve`, "vaste_kosten", "sub-vast-reserves", monthNumber, "Spaarpot", "Reserve vakantie", 5_000, order++),
-      entry(`m${monthNumber}-cash`, "variabele_kosten", "sub-var-huishoudgeld", monthNumber, "Cash", "Huishoudgeld", 20_000, order++),
-    ];
+  for (const rule of book.recurringRules) {
+    for (const month of year.months) {
+      for (const date of datesFor(rule, year.year, month.month)) {
+        month.entries.push(entryFromRule(rule, date, order++));
+      }
+    }
   }
-
-  addEntry(year, 1, entry("jan-income-family", "inkomsten", "sub-ink-familie", 1, "Familie", "Bijdrage familie", 4_894, order++));
-  addEntry(year, 1, entry("jan-health", "variabele_kosten", "sub-var-gezondheid", 1, "Apotheek", "Medicatie", 3_780, order++));
-  addEntry(year, 1, entry("jan-household-extra", "variabele_kosten", "sub-var-huishouden", 1, "Buurtwinkel", "Keukenmateriaal", 4_050, order++));
-
-  addEntry(year, 2, entry("feb-gift", "variabele_kosten", "sub-var-cadeaus", 2, "Familie", "Verjaardag", 5_000, order++));
-  addEntry(year, 2, entry("feb-empty-plan", "variabele_kosten", "sub-var-auto", 2, "Garage", "Nog te plannen", null, order++, "Geplande kost zonder bedrag."));
-
-  addEntry(year, 3, entry("mar-refund", "inkomsten", "sub-ink-terugbetalingen", 3, "Mutualiteit", "Terugbetaling zorg", 4_870, order++));
-  addEntry(year, 3, entry("mar-dentist", "variabele_kosten", "sub-var-gezondheid", 3, "Tandarts", "Controle", 6_500, order++));
-
-  addEntry(year, 5, entry("may-correction", "inkomsten", "sub-ink-terugbetalingen", 5, "Belastingdienst", "Correctie aanslag", 12_400, order++, "Voorbeeld van een latere correctieregel."));
-  addEntry(year, 6, entry("jun-appliance", "variabele_kosten", "sub-var-huishouden", 6, "Winkel", "Klein toestel", 8_995, order++));
-  addEntry(year, 8, entry("aug-fuel", "variabele_kosten", "sub-var-auto", 8, "Tankstation", "Brandstof", 6_875, order++));
-  addEntry(year, 10, entry("oct-insurance", "vaste_kosten", "sub-vast-verzekeringen", 10, "Verzekeraar", "Jaarlijkse verzekering", 29_900, order++));
-  addEntry(year, 12, entry("dec-gift", "variabele_kosten", "sub-var-cadeaus", 12, "Familie", "Eindejaarscadeau", 7_500, order++));
 
   book.labels = {
     parties: [
@@ -54,6 +36,8 @@ export function fictionalSampleBook(): Book {
       "Garage",
       "Mutualiteit",
       "Verzekeraar",
+      "Tandarts",
+      "Tankstation",
     ],
     income: ["Pensioen", "Aanvullend pensioen", "Bijdrage familie", "Terugbetaling zorg", "Correctie aanslag"],
     expense: [
@@ -73,30 +57,87 @@ export function fictionalSampleBook(): Book {
   return book;
 }
 
-function addEntry(year: Book["years"][number], monthNumber: number, row: Entry): void {
-  year.months[monthNumber - 1]?.entries.push(row);
+export function fictionalRecurringRules(): RecurringRule[] {
+  return [
+    rule("rule-pension", "inkomsten", "sub-ink-pensioen", "Pensioendienst", "Pensioen", 233_259),
+    rule("rule-small-pension", "inkomsten", "sub-ink-pensioen", "Pensioenkas", "Aanvullend pensioen", 6_331),
+    rule("rule-rent", "vaste_kosten", "sub-vast-wonen", "Woonfonds", "Huur", 82_000),
+    rule("rule-energy", "vaste_kosten", "sub-vast-energie", "Luminus", "Voorschot energie", 15_431),
+    rule("rule-telecom", "vaste_kosten", "sub-vast-telecom", "Telenet", "Internet en telefoon", 7_643),
+    rule("rule-bank", "vaste_kosten", "sub-vast-bank", "Bank", "Rekeningkosten", 475),
+    rule("rule-reserve", "vaste_kosten", "sub-vast-reserves", "Spaarpot", "Reserve vakantie", 5_000),
+    rule("rule-household-cash", "variabele_kosten", "sub-var-huishoudgeld", "Cash", "Huishoudgeld", 20_000),
+    oneOffRule("rule-family-contribution", "inkomsten", "sub-ink-familie", "Familie", "Bijdrage familie", 4_894, "01/01"),
+    oneOffRule("rule-health-medicine", "variabele_kosten", "sub-var-gezondheid", "Apotheek", "Medicatie", 3_780, "12/01"),
+    oneOffRule("rule-household-extra", "variabele_kosten", "sub-var-huishouden", "Buurtwinkel", "Keukenmateriaal", 4_050, "15/01"),
+    oneOffRule("rule-birthday-gift", "variabele_kosten", "sub-var-cadeaus", "Familie", "Verjaardag", 5_000, "18/02"),
+    oneOffRule("rule-planned-garage", "variabele_kosten", "sub-var-auto", "Garage", "Nog te plannen", null, "20/02"),
+    oneOffRule("rule-care-refund", "inkomsten", "sub-ink-terugbetalingen", "Mutualiteit", "Terugbetaling zorg", 4_870, "01/03"),
+    oneOffRule("rule-dentist", "variabele_kosten", "sub-var-gezondheid", "Tandarts", "Controle", 6_500, "12/03"),
+    oneOffRule("rule-tax-correction", "inkomsten", "sub-ink-terugbetalingen", "Belastingdienst", "Correctie aanslag", 12_400, "01/05"),
+    oneOffRule("rule-small-appliance", "variabele_kosten", "sub-var-huishouden", "Winkel", "Klein toestel", 8_995, "01/06"),
+    oneOffRule("rule-fuel", "variabele_kosten", "sub-var-auto", "Tankstation", "Brandstof", 6_875, "01/08"),
+    oneOffRule("rule-annual-insurance", "vaste_kosten", "sub-vast-verzekeringen", "Verzekeraar", "Jaarlijkse verzekering", 29_900, "01/10"),
+    oneOffRule("rule-year-end-gift", "variabele_kosten", "sub-var-cadeaus", "Familie", "Eindejaarscadeau", 7_500, "01/12"),
+  ];
 }
 
-function entry(
+function rule(
   id: string,
   section: Entry["section"],
-  subcategoryId: string | null,
-  month: number,
+  subcategoryId: string,
   party: string,
   description: string,
-  amountCents: number | null,
-  order: number,
-  comment = "",
-): Entry {
+  amountCents: number,
+): RecurringRule {
   return {
     id,
+    active: true,
     section,
     subcategoryId,
-    date: `2026-${String(month).padStart(2, "0")}-01`,
     party,
     description,
     amountCents,
-    comment,
-    createdAt: Date.UTC(2026, month - 1, order),
+    startYear: 2026,
+    startMonth: 1,
+    endYear: 2026,
+    endMonth: 12,
+    maxCount: null,
+    frequency: "monthly",
+    pattern: "",
+  };
+}
+
+function oneOffRule(
+  id: string,
+  section: Entry["section"],
+  subcategoryId: string,
+  party: string,
+  description: string,
+  amountCents: number | null,
+  datePattern: string,
+): RecurringRule {
+  return {
+    ...rule(id, section, subcategoryId, party, description, amountCents ?? 0),
+    amountCents,
+    frequency: "dates",
+    pattern: datePattern,
+    maxCount: 1,
+  };
+}
+
+function entryFromRule(rule: RecurringRule, date: string, order: number): Entry {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  return {
+    id: `${rule.id}-${date}`,
+    section: rule.section,
+    subcategoryId: rule.subcategoryId,
+    date,
+    party: rule.party,
+    description: expandTemplate(rule.description, date),
+    amountCents: rule.amountCents,
+    comment: "Aangemaakt uit demoregel.",
+    createdAt: Date.UTC(year, month - 1, order),
   };
 }

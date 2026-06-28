@@ -6,6 +6,7 @@
     ChevronRight,
     Check,
     CheckCircle2,
+    Clock,
     Download,
     History,
     Lock,
@@ -23,7 +24,7 @@
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
-  import { validateBook } from "../core/model";
+  import { createEmptyBook, validateBook } from "../core/model";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
   import type { Book, BudgetMonth, Entry, Subcategory } from "../core/model";
@@ -56,19 +57,27 @@
     accentMist: string;
   }
 
-  const storageKey = "abacus.fictionalProfile.v1";
+  type AppMode = "demo" | "production";
+
+  const demoStorageKey = "abacus.demo.2026.v1";
+  const productionStorageKey = "abacus.book.v1";
+  const modeStorageKey = "abacus.mode.v1";
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const initialBook = fictionalSampleBook();
+  const today = new Date();
 
   let book = $state(initialBook);
+  let appMode = $state<AppMode>("demo");
   let activeMonth = $state(1);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
+  let expandedDraftKey = $state<string | null>(null);
   let editingEntryId = $state<string | null>(null);
   let deleteConfirmEntryId = $state<string | null>(null);
   let editDraft = $state<DraftEntry>(emptyDraft());
   let storageReady = $state(false);
   let saveStatus = $state("Voorbeeldgegevens");
+  let currentClock = $state(formatClock(new Date()));
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -77,6 +86,7 @@
   });
 
   const totals = $derived(yearTotals(selectedYear));
+  const currentMonthInSelectedYear = $derived(selectedYear.year === today.getFullYear() ? today.getMonth() + 1 : null);
   const months: MonthView[] = [
     { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)" },
     { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)" },
@@ -93,7 +103,32 @@
   ];
 
   onMount(() => {
-    const savedBook = localStorage.getItem(storageKey);
+    const storedMode = localStorage.getItem(modeStorageKey);
+    appMode = storedMode === "production" ? "production" : "demo";
+    loadBookForMode(appMode);
+    activeMonth = currentMonthInSelectedYear ?? 1;
+    currentClock = formatClock(new Date());
+
+    const clockInterval = window.setInterval(() => {
+      currentClock = formatClock(new Date());
+    }, 30_000);
+
+    storageReady = true;
+    window.setTimeout(() => selectMonth(activeMonth), 120);
+
+    return () => window.clearInterval(clockInterval);
+  });
+
+  $effect(() => {
+    if (!storageReady) return;
+    localStorage.setItem(modeStorageKey, appMode);
+    localStorage.setItem(storageKeyForMode(appMode), JSON.stringify(book));
+    saveStatus = appMode === "demo" ? "Leermodus lokaal bewaard" : "Productiebestand lokaal bewaard";
+  });
+
+  function loadBookForMode(mode: AppMode): void {
+    const fallbackBook = defaultBookForMode(mode);
+    const savedBook = localStorage.getItem(storageKeyForMode(mode));
     if (savedBook) {
       try {
         const parsedBook = JSON.parse(savedBook) as Book;
@@ -101,24 +136,39 @@
         if (issues.length === 0) {
           book = parsedBook;
           drafts = createDrafts(parsedBook);
-          saveStatus = "Voorbeeldgegevens lokaal geladen";
+          expandedDraftKey = null;
+          saveStatus = mode === "demo" ? "Leermodus lokaal geladen" : "Productiebestand lokaal geladen";
+          return;
         } else {
-          saveStatus = "Lokaal voorbeeldbestand genegeerd";
+          saveStatus = mode === "demo" ? "Lokale leermodus genegeerd" : "Lokaal productiebestand genegeerd";
         }
       } catch {
-        saveStatus = "Lokaal voorbeeldbestand kon niet gelezen worden";
+        saveStatus = mode === "demo" ? "Leermodus kon niet gelezen worden" : "Productiebestand kon niet gelezen worden";
       }
     }
 
-    storageReady = true;
-    window.setTimeout(() => selectMonth(activeMonth), 120);
-  });
+    book = fallbackBook;
+    drafts = createDrafts(fallbackBook);
+    expandedDraftKey = null;
+  }
 
-  $effect(() => {
-    if (!storageReady) return;
-    localStorage.setItem(storageKey, JSON.stringify(book));
-    saveStatus = "Voorbeeldgegevens lokaal bewaard";
-  });
+  function defaultBookForMode(mode: AppMode): Book {
+    return mode === "demo" ? fictionalSampleBook() : createEmptyBook(2026);
+  }
+
+  function storageKeyForMode(mode: AppMode): string {
+    return mode === "demo" ? demoStorageKey : productionStorageKey;
+  }
+
+  function switchMode(nextMode: AppMode): void {
+    if (appMode === nextMode) return;
+    storageReady = false;
+    appMode = nextMode;
+    loadBookForMode(nextMode);
+    activeMonth = currentMonthInSelectedYear ?? 1;
+    storageReady = true;
+    requestAnimationFrame(() => selectMonth(activeMonth));
+  }
 
   function monthName(monthNumber: number): string {
     return months[monthNumber - 1]?.name ?? `Maand ${monthNumber}`;
@@ -160,8 +210,10 @@
     const item = document.querySelector(itemSelector);
     if (!(rail instanceof HTMLElement) || !(item instanceof HTMLElement)) return;
 
+    const railRect = rail.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
     rail.scrollTo({
-      left: item.offsetLeft - (rail.clientWidth - item.clientWidth) / 2,
+      left: rail.scrollLeft + itemRect.left - railRect.left - (rail.clientWidth - item.clientWidth) / 2,
       behavior: "smooth",
     });
   }
@@ -219,6 +271,27 @@
     return drafts[key] ?? emptyDraft();
   }
 
+  function hasDraftContent(draft: DraftEntry): boolean {
+    return Boolean(draft.party.trim() || draft.description.trim() || draft.amountText.trim() || draft.amountError);
+  }
+
+  function isDraftVisible(key: string, draft: DraftEntry): boolean {
+    return expandedDraftKey === key || hasDraftContent(draft);
+  }
+
+  function openDraft(monthNumber: number, section: Section, subcategoryId: string): void {
+    const key = draftKey(monthNumber, section, subcategoryId);
+    expandedDraftKey = key;
+    activeMonth = monthNumber;
+
+    requestAnimationFrame(() => {
+      scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
+      scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
+      const input = document.querySelector(`[data-testid="draft-${monthNumber}-${section}-${subcategoryId}"] input[aria-label^="Partij"]`);
+      if (input instanceof HTMLInputElement) input.focus();
+    });
+  }
+
   function commitDraft(month: BudgetMonth, section: Section, subcategoryId: string): void {
     const key = draftKey(month.month, section, subcategoryId);
     const draft = drafts[key];
@@ -252,6 +325,7 @@
       amountText: "",
       amountError: "",
     };
+    if (expandedDraftKey === key) expandedDraftKey = null;
     activeMonth = month.month;
   }
 
@@ -345,7 +419,9 @@
   }
 
   function resetDraft(monthNumber: number, section: Section, subcategoryId: string): void {
-    drafts[draftKey(monthNumber, section, subcategoryId)] = emptyDraft();
+    const key = draftKey(monthNumber, section, subcategoryId);
+    drafts[key] = emptyDraft();
+    if (expandedDraftKey === key) expandedDraftKey = null;
   }
 
   function clearAmountError(draft: DraftEntry): void {
@@ -387,6 +463,13 @@
       amountError: "",
     };
   }
+
+  function formatClock(date: Date): string {
+    return new Intl.DateTimeFormat("nl-BE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
 </script>
 
 <main class:evening>
@@ -410,6 +493,10 @@
     </nav>
 
     <div class="header-actions">
+      <div class="mode-switch" aria-label="Gegevensmodus">
+        <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
+        <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+      </div>
       <button class="icon-button" type="button" aria-label="Weergave wisselen" onclick={() => (evening = !evening)}>
         {#if evening}
           <Sun size={19} />
@@ -443,7 +530,9 @@
       <button
         type="button"
         class:active={activeMonth === month.month}
+        class:current-month={currentMonthInSelectedYear === month.month}
         data-month-tab={month.month}
+        data-current-month={currentMonthInSelectedYear === month.month ? "true" : undefined}
         aria-current={activeMonth === month.month ? "date" : undefined}
         style={monthThemeStyle(month.month)}
         onclick={() => selectMonth(month.month)}
@@ -460,6 +549,7 @@
       {@const total = monthTotal(month.month)}
       <div
         class:active-card={activeMonth === month.month}
+        class:current-month={currentMonthInSelectedYear === month.month}
         class="month-card"
         aria-label={monthName(month.month)}
         aria-pressed={activeMonth === month.month}
@@ -513,63 +603,75 @@
               {@const subcategoryTotal = total?.bySubcategoryCents[subcategory.id] ?? 0}
               <div class="subcategory-row">
                 <span>{subcategory.name}</span>
+                <em>{groupedEntries.length}</em>
                 <strong>{formatMoneyCents(subcategoryTotal)}</strong>
+                <button
+                  class="subcategory-add"
+                  type="button"
+                  aria-label={`Invoer openen voor ${subcategory.name}`}
+                  onclick={() => openDraft(month.month, section, subcategory.id)}
+                >
+                  <Plus size={15} />
+                </button>
               </div>
 
               {@const draft = draftFor(month.month, section, subcategory.id)}
-              <div
-                class:has-error={Boolean(draft.amountError)}
-                class="new-entry-panel"
-                data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
-                onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
-                onfocusin={() => activateMonthForInput(month.month)}
-              >
-                <label class="field">
-                  <span>Partij</span>
-                  <input
-                    aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
-                    bind:value={draft.party}
-                    placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                  />
-                </label>
-
-                <label class="field label-field">
-                  <span>Omschrijving</span>
-                  <input
-                    aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
-                    bind:value={draft.description}
-                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                  />
-                </label>
-
-                <label class="field amount-field">
-                  <span>Bedrag</span>
-                  <input
-                    aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}-${subcategory.id}` : undefined}
-                    aria-invalid={Boolean(draft.amountError)}
-                    aria-label={`Bedrag voor ${subcategory.name} in ${monthName(month.month)}`}
-                    bind:value={draft.amountText}
-                    inputmode="decimal"
-                    placeholder="0,00"
-                    oninput={() => clearAmountError(draft)}
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                  />
-                  {#if draft.amountError}
-                    <small id={`amount-error-${month.month}-${section}-${subcategory.id}`} class="field-error">{draft.amountError}</small>
-                  {/if}
-                </label>
-
-                <button
-                  class="add-entry"
-                  type="button"
-                  aria-label={`Nieuwe regel toevoegen aan ${subcategory.name}`}
-                  onclick={() => commitDraft(month, section, subcategory.id)}
+              {@const key = draftKey(month.month, section, subcategory.id)}
+              {#if isDraftVisible(key, draft)}
+                <div
+                  class:has-error={Boolean(draft.amountError)}
+                  class="new-entry-panel"
+                  data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
+                  onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
+                  onfocusin={() => activateMonthForInput(month.month)}
                 >
-                  <Plus size={16} />
-                </button>
-              </div>
+                  <label class="field">
+                    <span>Partij</span>
+                    <input
+                      aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
+                      bind:value={draft.party}
+                      placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                    />
+                  </label>
+
+                  <label class="field label-field">
+                    <span>Omschrijving</span>
+                    <input
+                      aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
+                      bind:value={draft.description}
+                      placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                    />
+                  </label>
+
+                  <label class="field amount-field">
+                    <span>Bedrag</span>
+                    <input
+                      aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}-${subcategory.id}` : undefined}
+                      aria-invalid={Boolean(draft.amountError)}
+                      aria-label={`Bedrag voor ${subcategory.name} in ${monthName(month.month)}`}
+                      bind:value={draft.amountText}
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      oninput={() => clearAmountError(draft)}
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                    />
+                    {#if draft.amountError}
+                      <small id={`amount-error-${month.month}-${section}-${subcategory.id}`} class="field-error">{draft.amountError}</small>
+                    {/if}
+                  </label>
+
+                  <button
+                    class="add-entry"
+                    type="button"
+                    aria-label={`Nieuwe regel toevoegen aan ${subcategory.name}`}
+                    onclick={() => commitDraft(month, section, subcategory.id)}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              {/if}
 
               {#if groupedEntries.length > 0}
                 {#each groupedEntries as entry}
@@ -712,11 +814,17 @@
         </footer>
       </div>
     {/each}
+    <div class="board-spacer" aria-hidden="true"></div>
+    <button class="year-loop-card" type="button" onclick={() => selectMonth(1)}>
+      <span>Januari</span>
+      <strong>Terug naar begin</strong>
+    </button>
   </section>
 
   <footer class="status-bar">
-    <span>{saveStatus}</span>
+    <span>{appMode === "demo" ? "Leermodus" : "Productie"} · {saveStatus}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
+    <span><Clock size={15} /> {currentClock}</span>
     <span>Eindsaldo jaar {formatMoneyCents(totals.endCents)}</span>
   </footer>
 </main>

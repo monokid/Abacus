@@ -144,6 +144,7 @@ export function subcategoriesFor(book: Book, section: Section): Subcategory[] {
 
 export function validateBook(book: Book): string[] {
   const issues: string[] = [];
+  const validFrequencies = new Set<RecurringFrequency>(["monthly", "quarterly", "yearly", "months", "dates", "weekday"]);
 
   if (book.schemaVersion !== SCHEMA_VERSION) issues.push("Onbekende schemaversie.");
   if (book.settings.locale !== "nl-BE") issues.push("Ongeldige taalinstelling.");
@@ -160,9 +161,13 @@ export function validateBook(book: Book): string[] {
     if (!item.name.trim()) issues.push(`Subcategorie '${item.id}' heeft geen naam.`);
   }
 
+  const ruleIds = new Set<string>();
   for (const rule of book.recurringRules ?? []) {
     if (!rule.id) issues.push("Terugkerende regel zonder id.");
+    if (ruleIds.has(rule.id)) issues.push(`Dubbele terugkerende regel-id: ${rule.id}.`);
+    ruleIds.add(rule.id);
     if (!isSection(rule.section)) issues.push(`Terugkerende regel '${rule.id}' heeft een onbekende hoofdgroep.`);
+    if (!validFrequencies.has(rule.frequency)) issues.push(`Terugkerende regel '${rule.id}' heeft een onbekende herhaling.`);
     if (rule.subcategoryId) {
       const match = book.subcategories.find((item) => item.id === rule.subcategoryId);
       if (!match) issues.push(`Terugkerende regel '${rule.id}' verwijst naar een onbekende subcategorie.`);
@@ -178,6 +183,25 @@ export function validateBook(book: Book): string[] {
     if (!Number.isInteger(rule.startMonth) || rule.startMonth < 1 || rule.startMonth > 12) {
       issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldige startmaand.`);
     }
+    if ((rule.endYear === null) !== (rule.endMonth === null)) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft een onvolledige einddatum.`);
+    }
+    if (rule.endYear !== null && !Number.isInteger(rule.endYear)) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldig eindjaar.`);
+    }
+    if (rule.endMonth !== null && (!Number.isInteger(rule.endMonth) || rule.endMonth < 1 || rule.endMonth > 12)) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldige eindmaand.`);
+    }
+    if (rule.maxCount !== null && (!Number.isInteger(rule.maxCount) || rule.maxCount < 1)) {
+      issues.push(`Terugkerende regel '${rule.id}' heeft een ongeldig maximum.`);
+    }
+  }
+
+  for (const skip of book.recurringSkips ?? []) {
+    if (!skip.ruleId) issues.push("Overgeslagen terugkerende regel zonder regel-id.");
+    if (skip.ruleId && !ruleIds.has(skip.ruleId)) issues.push(`Overgeslagen terugkerende regel '${skip.ruleId}' bestaat niet.`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(skip.date)) issues.push(`Overgeslagen terugkerende regel '${skip.ruleId}' heeft een ongeldige datum.`);
+    if (!skip.skippedAt) issues.push(`Overgeslagen terugkerende regel '${skip.ruleId}' heeft geen tijdstip.`);
   }
 
   for (const year of book.years ?? []) {

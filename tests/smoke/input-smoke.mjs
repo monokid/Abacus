@@ -6,7 +6,9 @@ import { chromium } from "playwright-core";
 
 const port = 5174;
 const baseUrl = `http://127.0.0.1:${port}`;
-const storageKey = "abacus.fictionalProfile.v1";
+const demoStorageKey = "abacus.demo.2026.v1";
+const productionStorageKey = "abacus.book.v1";
+const modeStorageKey = "abacus.mode.v1";
 const screenshotDir = "test-results/smoke";
 
 let devServer = null;
@@ -18,7 +20,7 @@ try {
     devServer = spawn(npmCommand(), ["run", "dev", "--", "--port", String(port), "--strictPort"], {
       cwd: process.cwd(),
       stdio: "ignore",
-      shell: false,
+      shell: process.platform === "win32",
     });
     await waitForServer();
   }
@@ -36,14 +38,18 @@ try {
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.evaluate((key) => localStorage.removeItem(key), storageKey);
+  await clearStorage(page);
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
   await captureScreenshot(page, "01-initial-board.png");
   await expectCompactTopUi(page);
+  await expectTaskbarTime(page);
+  await expectCurrentMonthIndicator(page);
+  await expectModeSwitchSeparatesDemo(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectNoMonthNumberLabels(page);
   await expectCategoryInputs(page);
+  await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectIncomePartyInputs(page);
   await focusInactiveMonthIncomePartyInput(page, 2);
   await expectActiveMonthVisible(page, 2);
@@ -78,6 +84,13 @@ try {
   await expectMonthTabsVisible(page, "na volgende maand op kaart");
   await navigateWithCardButton(page, 10, "Vorige maand", 9);
   await expectActiveMonthVisible(page, 9);
+  await navigateToMonth(page, 12);
+  await expectActiveMonthVisible(page, 12);
+  await expectActiveCardCenteredEnough(page, 12);
+  await captureScreenshot(page, "04-december-centered.png");
+  await page.getByRole("button", { name: /Terug naar begin/i }).click();
+  await expectActiveMonthVisible(page, 1);
+  await navigateToMonth(page, 9);
   await fillExpense(page, {
     party: "Testwinkel",
     description: "Test uitgave rooktest",
@@ -135,6 +148,7 @@ try {
 }
 
 async function fillExpense(page, { party, description, amount }) {
+  await openDraft(page, 9, "vaste_kosten", "sub-vast-wonen", "Wonen");
   const draft = page.locator('[data-testid="draft-9-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Partij"]').fill(party);
   await draft.locator('input[aria-label^="Omschrijving"]').fill(description);
@@ -144,6 +158,7 @@ async function fillExpense(page, { party, description, amount }) {
 }
 
 async function focusInactiveMonthIncomePartyInput(page, monthNumber) {
+  await openDraft(page, monthNumber, "inkomsten", "sub-ink-pensioen", "Pensioen");
   const input = page.locator(`[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"] input[aria-label^="Partij"]`);
   await input.click();
   await input.fill("Klad partij");
@@ -173,6 +188,7 @@ async function clearInvalidExpenseDraft(page) {
 }
 
 async function fillVariableAndCommitOnBlur(page) {
+  await openDraft(page, 9, "variabele_kosten", "sub-var-gezondheid", "Gezondheid");
   const draft = page.locator('[data-testid="draft-9-variabele_kosten-sub-var-gezondheid"]');
   await draft.locator('input[aria-label^="Partij"]').fill("Apotheek");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Klik weg rooktest");
@@ -181,6 +197,7 @@ async function fillVariableAndCommitOnBlur(page) {
 }
 
 async function fillIncomeAndCancel(page) {
+  await openDraft(page, 9, "inkomsten", "sub-ink-pensioen", "Pensioen");
   const draft = page.locator('[data-testid="draft-9-inkomsten-sub-ink-pensioen"]');
   await draft.locator('input[aria-label^="Partij"]').fill("Pensioenfonds annulering");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Wordt geannuleerd");
@@ -188,6 +205,7 @@ async function fillIncomeAndCancel(page) {
 }
 
 async function fillIncomeWithParty(page) {
+  await openDraft(page, 9, "inkomsten", "sub-ink-pensioen", "Pensioen");
   const draft = page.locator('[data-testid="draft-9-inkomsten-sub-ink-pensioen"]');
   await draft.locator('input[aria-label^="Partij"]').fill("Pensioenfonds rooktest");
   await draft.locator('input[aria-label^="Omschrijving"]').fill("Inkomen met partij rooktest");
@@ -200,7 +218,7 @@ async function editIncomeRow(page) {
   await page.getByLabel("Regel bewerken: Inkomen met partij rooktest").click();
   const editRow = page.locator('[data-testid^="edit-demo-9-inkomsten-"]');
   await expectEditRowsContained(page, "inkomstenregel bewerken");
-  await captureScreenshot(page, "04-edit-income-row.png");
+  await captureScreenshot(page, "05-edit-income-row.png");
   await editRow.locator('input[aria-label^="Partij bewerken"]').fill("Pensioenfonds aangepast");
   await editRow.locator('input[aria-label^="Omschrijving bewerken"]').fill("Inkomen aangepast rooktest");
   await editRow.locator('input[aria-label^="Bedrag bewerken"]').fill("124,56");
@@ -220,7 +238,7 @@ async function deleteVariableRow(page) {
   await page.getByLabel("Verwijderen voorbereiden: Klik weg rooktest").click();
   await expectVisibleText(page, "Deze regel verwijderen?");
   await expectDeleteConfirmRowsContained(page, "verwijdering voorbereiden");
-  await captureScreenshot(page, "05-delete-confirm-row.png");
+  await captureScreenshot(page, "06-delete-confirm-row.png");
 
   await page.getByLabel("Verwijderen annuleren").click();
   await expectHiddenText(page, "Deze regel verwijderen?");
@@ -230,15 +248,15 @@ async function deleteVariableRow(page) {
 
 async function auditResponsiveViewports(browser) {
   const viewports = [
-    { name: "06-responsive-small-laptop.png", width: 760, height: 720, month: 9 },
-    { name: "07-responsive-narrow.png", width: 390, height: 844, month: 9 },
+    { name: "07-responsive-small-laptop.png", width: 760, height: 720, month: 9 },
+    { name: "08-responsive-narrow.png", width: 390, height: 844, month: 9 },
   ];
 
   for (const viewport of viewports) {
     const page = await browser.newPage();
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
-    await page.evaluate((key) => localStorage.removeItem(key), storageKey);
+    await clearStorage(page);
     await page.reload({ waitUntil: "networkidle" });
     await navigateToMonth(page, viewport.month);
     await expectActiveMonthVisible(page, viewport.month);
@@ -251,7 +269,16 @@ async function auditResponsiveViewports(browser) {
   }
 }
 
+async function openDraft(page, monthNumber, section, subcategoryId, label) {
+  const draft = page.locator(`[data-testid="draft-${monthNumber}-${section}-${subcategoryId}"]`);
+  if ((await draft.count()) > 0 && (await draft.isVisible())) return;
+
+  await page.locator(`[data-month-card="${monthNumber}"]`).getByLabel(`Invoer openen voor ${label}`).click();
+  await draft.waitFor({ state: "visible", timeout: 5_000 });
+}
+
 async function expectIncomeDraftTabOrder(page, monthNumber) {
+  await openDraft(page, monthNumber, "inkomsten", "sub-ink-pensioen", "Pensioen");
   const draftSelector = `[data-testid="draft-${monthNumber}-inkomsten-sub-ink-pensioen"]`;
   await page.locator(`${draftSelector} input[aria-label^="Partij"]`).focus();
   await expectFocusedControl(page, draftSelector, 'input[aria-label^="Partij"]', "tabvolgorde start bij Partij");
@@ -597,7 +624,6 @@ async function expectActiveCardNotClipped(page, monthNumber) {
 async function expectCategoryInputs(page) {
   const issue = await page.evaluate(() => {
     const panels = Array.from(document.querySelectorAll(".new-entry-panel"));
-    if (panels.length === 0) return "Geen categorie-invoerpanelen gevonden.";
     if (panels.some((panel) => panel.querySelector("select"))) return "Een invoerrij bevat nog een categorie-dropdown.";
 
     for (const panel of panels) {
@@ -607,6 +633,7 @@ async function expectCategoryInputs(page) {
 
     const categoryRows = Array.from(document.querySelectorAll(".subcategory-row"));
     if (categoryRows.length === 0) return "Geen categorietitelrijen gevonden.";
+    if (categoryRows.some((row) => !row.querySelector(".subcategory-add"))) return "Een categorietitel mist een invoerknop.";
     if (categoryRows.some((row) => !/€\s?[\d.,-]+/.test(row.textContent ?? ""))) return "Een categorietitel mist een subtotaal.";
 
     return "";
@@ -647,6 +674,84 @@ async function expectIncomePartyInputs(page) {
   if (issues.length > 0) {
     throw new Error(`Partijcontrole voor inkomsten faalde:\n${issues.join("\n")}`);
   }
+}
+
+async function expectTaskbarTime(page) {
+  const issue = await page.evaluate(() => {
+    const statusBar = document.querySelector(".status-bar");
+    if (!(statusBar instanceof HTMLElement)) return "Statusbalk ontbreekt.";
+    if (!/\d{2}:\d{2}/.test(statusBar.textContent ?? "")) return "Statusbalk toont geen tijd.";
+    if (!/Leermodus|Productie/.test(statusBar.textContent ?? "")) return "Statusbalk toont geen modus.";
+
+    const style = getComputedStyle(statusBar);
+    if (style.position !== "sticky") return "Statusbalk is geen taakbalk onderaan.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Taakbalkcontrole faalde: ${issue}`);
+}
+
+async function expectCurrentMonthIndicator(page) {
+  const issue = await page.evaluate(() => {
+    const currentTab = document.querySelector('[data-current-month="true"]');
+    const currentCard = document.querySelector(".month-card.current-month");
+    if (!(currentTab instanceof HTMLElement) || !(currentCard instanceof HTMLElement)) return "Huidige maand heeft geen indicator.";
+
+    const tabLine = getComputedStyle(currentTab, "::before");
+    const cardLine = getComputedStyle(currentCard, "::before");
+    if (!tabLine.content || tabLine.content === "none") return "Huidige maand mist lijn in maandbalk.";
+    if (!cardLine.content || cardLine.content === "none") return "Huidige maand mist lijn op kaart.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Huidige-maandcontrole faalde: ${issue}`);
+}
+
+async function expectModeSwitchSeparatesDemo(page) {
+  await page.getByRole("button", { name: "Echt" }).click();
+  await expectVisibleText(page, "Productie");
+  await page.waitForFunction(() => {
+    const text = document.body.textContent ?? "";
+    return text.includes("Productie") && !text.includes("Pensioendienst");
+  });
+
+  await page.getByRole("button", { name: "Leren" }).click();
+  await expectVisibleText(page, "Leermodus");
+  await expectVisibleText(page, "Pensioendienst");
+
+  const issue = await page.evaluate(({ demoKey, productionKey, modeKey }) => {
+    if (localStorage.getItem(modeKey) !== "demo") return "Modus is niet naar leermodus teruggezet.";
+    if (!localStorage.getItem(demoKey)) return "Demo-opslag ontbreekt.";
+    if (!localStorage.getItem(productionKey)) return "Productie-opslag ontbreekt na moduswissel.";
+    return "";
+  }, { demoKey: demoStorageKey, productionKey: productionStorageKey, modeKey: modeStorageKey });
+
+  if (issue) throw new Error(`Moduscontrole faalde: ${issue}`);
+}
+
+async function expectActiveCardCenteredEnough(page, monthNumber) {
+  await page.waitForFunction(
+    (targetMonthNumber) => {
+      const card = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+      if (!(card instanceof HTMLElement)) return false;
+      const rect = card.getBoundingClientRect();
+      return Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2) <= 130;
+    },
+    monthNumber,
+    { timeout: 5_000 },
+  );
+
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const card = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+    if (!(card instanceof HTMLElement)) return "Actieve maandkaart ontbreekt.";
+
+    const rect = card.getBoundingClientRect();
+    const centerDelta = Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2);
+    if (centerDelta > 130) return `Actieve kaart staat te ver uit het midden (${Math.round(centerDelta)}px).`;
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`December-centrering faalde: ${issue}`);
 }
 
 async function expectMonthHeaderLayout(page, label) {
@@ -776,6 +881,17 @@ async function expectVisibleText(page, text) {
 async function expectHiddenText(page, text) {
   const count = await page.getByText(text, { exact: false }).count();
   if (count > 0) throw new Error(`Tekst onverwacht gevonden: ${text}`);
+}
+
+async function clearStorage(page) {
+  await page.evaluate(
+    ({ demoKey, productionKey, modeKey }) => {
+      localStorage.removeItem(demoKey);
+      localStorage.removeItem(productionKey);
+      localStorage.removeItem(modeKey);
+    },
+    { demoKey: demoStorageKey, productionKey: productionStorageKey, modeKey: modeStorageKey },
+  );
 }
 
 async function isServerReady() {
