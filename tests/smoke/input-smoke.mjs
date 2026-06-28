@@ -1164,6 +1164,7 @@ async function expectModeSwitchSeparatesDemo(page) {
 
 async function expectCategorySettingsManagement(page) {
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Categorieen" }).click();
   await expectVisibleText(page, "Categorieen");
 
   await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").fill("Apotheek Extra");
@@ -1183,6 +1184,7 @@ async function expectCategorySettingsManagement(page) {
   await expectVisibleText(page, "Nieuwe zalf");
 
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Categorieen" }).click();
   await page.getByLabel("Naam van subcategorie Apotheek Extra").fill("Apotheek");
   await page.keyboard.press("Tab");
   await expectVisibleText(page, "Apotheek bewaard");
@@ -1197,7 +1199,8 @@ async function expectCategorySettingsManagement(page) {
 
 async function expectRecurringRuleSettings(page) {
   await page.getByRole("button", { name: "Instellingen" }).click();
-  await expectVisibleText(page, "Regels");
+  await page.getByRole("button", { name: "Vaste regels" }).click();
+  await expectVisibleText(page, "Vaste regels");
 
   await page.getByLabel("Subcategorie voor nieuwe regel").selectOption("sub-vast-wonen");
   await page.getByLabel("Partij voor nieuwe regel").fill("Watermaatschappij");
@@ -1212,6 +1215,7 @@ async function expectRecurringRuleSettings(page) {
   await expectVisibleText(page, "15,25");
 
   await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Vaste regels" }).click();
   await page.getByLabel("Regel actief: Waterfilter rooktest").uncheck();
   await expectVisibleText(page, "Regel toegepast op het jaar");
   await page.getByRole("button", { name: "Jaar" }).click();
