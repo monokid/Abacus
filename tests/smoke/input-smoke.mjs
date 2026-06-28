@@ -17,10 +17,10 @@ try {
   await mkdir(screenshotDir, { recursive: true });
 
   if (!(await isServerReady())) {
-    devServer = spawn(npmCommand(), ["run", "dev", "--", "--port", String(port), "--strictPort"], {
+    devServer = spawn(devCommand(), devArgs(), {
       cwd: process.cwd(),
       stdio: "ignore",
-      shell: process.platform === "win32",
+      shell: false,
     });
     await waitForServer();
   }
@@ -45,10 +45,15 @@ try {
   await expectCompactTopUi(page);
   await expectTaskbarTime(page);
   await expectCurrentMonthIndicator(page);
+  await expectBrandReturnsToCurrentMonth(page);
   await expectModeSwitchSeparatesDemo(page);
+  await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
+  await expectDistinctSectionIcons(page);
+  await expectCarryBalanceInIncomeGrid(page);
   await expectNoMonthNumberLabels(page);
   await expectCategoryInputs(page);
+  await expectExcelNumberAlignment(page);
   await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectIncomePartyInputs(page);
   await focusInactiveMonthIncomePartyInput(page, 2);
@@ -90,12 +95,17 @@ try {
   await captureScreenshot(page, "04-december-centered.png");
   await page.getByRole("button", { name: /Terug naar begin/i }).click();
   await expectActiveMonthVisible(page, 1);
+  await expectActiveCardCenteredEnough(page, 1);
+  await page.getByRole("button", { name: /Naar jaareinde/i }).click();
+  await expectActiveMonthVisible(page, 12);
+  await expectActiveCardCenteredEnough(page, 12);
   await navigateToMonth(page, 9);
   await fillExpense(page, {
     party: "Testwinkel",
     description: "Test uitgave rooktest",
     amount: "12,34",
   });
+  await expectRecentRowGlow(page, "Test uitgave rooktest");
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectVisibleText(page, "12,34");
 
@@ -136,6 +146,7 @@ try {
   await expectVisibleText(page, "Inkomen aangepast rooktest");
   await expectDraftPanelsContained(page, "na verversen");
   await auditResponsiveViewports(browser);
+  await auditDarkMode(browser);
 
   if (runtimeErrors.length > 0) {
     throw new Error(`Browserfouten:\n${runtimeErrors.join("\n")}`);
@@ -267,6 +278,22 @@ async function auditResponsiveViewports(browser) {
     await capturePageScreenshot(page, viewport.name);
     await page.close();
   }
+}
+
+async function auditDarkMode(browser) {
+  const page = await browser.newPage();
+  await page.setViewportSize({ width: 954, height: 827 });
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await clearStorage(page);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByLabel("Weergave wisselen").click();
+  await navigateToMonth(page, 9);
+  await expectDarkModeMonthHeaders(page);
+  await expectMonthHeaderLayout(page, "donkere modus");
+  await expectTooltips(page);
+  await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
+  await capturePageScreenshot(page, "09-dark-mode.png");
+  await page.close();
 }
 
 async function openDraft(page, monthNumber, section, subcategoryId, label) {
@@ -634,6 +661,8 @@ async function expectCategoryInputs(page) {
     const categoryRows = Array.from(document.querySelectorAll(".subcategory-row"));
     if (categoryRows.length === 0) return "Geen categorietitelrijen gevonden.";
     if (categoryRows.some((row) => !row.querySelector(".subcategory-add"))) return "Een categorietitel mist een invoerknop.";
+    if (categoryRows.some((row) => row.querySelector("em"))) return "Een categorietitel toont nog een zichtbaar aantal.";
+    if (categoryRows.some((row) => !row.getAttribute("data-entry-count"))) return "Een categorietitel bewaart het aantal niet als metadata.";
     if (categoryRows.some((row) => !/€\s?[\d.,-]+/.test(row.textContent ?? ""))) return "Een categorietitel mist een subtotaal.";
 
     return "";
@@ -684,11 +713,14 @@ async function expectTaskbarTime(page) {
     if (!/Leermodus|Productie/.test(statusBar.textContent ?? "")) return "Statusbalk toont geen modus.";
 
     const style = getComputedStyle(statusBar);
-    if (style.position !== "sticky") return "Statusbalk is geen taakbalk onderaan.";
+    if (style.position !== "fixed") return "Statusbalk is niet vast onderaan.";
+    const statusRect = statusBar.getBoundingClientRect();
+    if (statusRect.bottom > window.innerHeight + 1) return "Statusbalk valt buiten beeld.";
     return "";
   });
 
   if (issue) throw new Error(`Taakbalkcontrole faalde: ${issue}`);
+  await expectStatusBarDoesNotOverlapCards(page, "taakbalk");
 }
 
 async function expectCurrentMonthIndicator(page) {
@@ -707,7 +739,30 @@ async function expectCurrentMonthIndicator(page) {
   if (issue) throw new Error(`Huidige-maandcontrole faalde: ${issue}`);
 }
 
+async function expectBrandReturnsToCurrentMonth(page) {
+  await navigateToMonth(page, 10);
+  await page.getByLabel("Ga naar huidige maand").click();
+  await page.waitForFunction(() => {
+    const currentCard = document.querySelector(".month-card.current-month");
+    const currentTab = document.querySelector('[data-current-month="true"]');
+    return currentCard?.classList.contains("active-card") && currentTab?.classList.contains("active");
+  });
+  await expectActiveCardCenteredEnough(page, 6);
+}
+
 async function expectModeSwitchSeparatesDemo(page) {
+  const headerIssue = await page.evaluate(() => {
+    const header = document.querySelector(".app-header");
+    if (!(header instanceof HTMLElement)) return "Header ontbreekt.";
+    if (header.textContent?.includes("Leren") || header.textContent?.includes("Echt")) {
+      return "Gegevensmodus staat nog in de hoofdinterface.";
+    }
+    return "";
+  });
+  if (headerIssue) throw new Error(`Moduscontrole faalde: ${headerIssue}`);
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Echt" }).click();
   await expectVisibleText(page, "Productie");
   await page.waitForFunction(() => {
@@ -727,6 +782,146 @@ async function expectModeSwitchSeparatesDemo(page) {
   }, { demoKey: demoStorageKey, productionKey: productionStorageKey, modeKey: modeStorageKey });
 
   if (issue) throw new Error(`Moduscontrole faalde: ${issue}`);
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectHiddenText(page, "Gegevensmodus");
+}
+
+async function expectTooltips(page) {
+  const issue = await page.evaluate(() => {
+    const selectors = [".brand", ".tool", ".icon-button", ".primary-action", ".month-tools button", ".subcategory-add", ".entry-row button"];
+    for (const selector of selectors) {
+      const elements = Array.from(document.querySelectorAll(selector)).filter((element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (elements.length === 0) continue;
+      for (const element of elements) {
+        if (!element.getAttribute("aria-label") && !element.textContent?.trim()) return `${selector} mist toegankelijke naam.`;
+        if (!element.dataset.tooltip && !element.getAttribute("title")) return `${selector} mist tooltip.`;
+      }
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Tooltipcontrole faalde: ${issue}`);
+}
+
+async function expectDistinctSectionIcons(page) {
+  const issue = await page.evaluate(() => {
+    const titles = Array.from(document.querySelectorAll("[data-month-card='6'] .section-title"));
+    const paths = titles.map((title) => title.querySelector("svg")?.innerHTML ?? "");
+    if (paths.length < 3) return "Niet alle sectietitels hebben een icoon.";
+    if (new Set(paths).size !== paths.length) return "Sectie-iconen zijn niet uniek.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Sectie-icooncontrole faalde: ${issue}`);
+}
+
+async function expectCarryBalanceInIncomeGrid(page) {
+  const issue = await page.evaluate(() => {
+    const floatingCarry = document.querySelector(".carry-row");
+    if (floatingCarry) return "Overdracht staat nog als zwevende balk.";
+
+    const transferRow = document.querySelector("[data-month-card='6'] [data-transfer-row='true']");
+    if (!(transferRow instanceof HTMLElement)) return "Overdracht ontbreekt in de inkomsten-grid.";
+    if (!transferRow.textContent?.includes("Resterend van vorige maand")) return "Overdracht heeft niet de juiste tekst.";
+    if (transferRow.querySelector("button")) return "Overdracht is per ongeluk bewerkbaar.";
+
+    const incomeTitle = transferRow.closest(".budget-section")?.querySelector(".section-title");
+    if (!incomeTitle?.textContent?.includes("Inkomsten")) return "Overdracht staat niet bij inkomsten.";
+    return "";
+  });
+
+  if (issue) throw new Error(`Overdrachtcontrole faalde: ${issue}`);
+}
+
+async function expectExcelNumberAlignment(page) {
+  const issue = await page.evaluate(() => {
+    const selectors = [".entry-row strong", ".amount-field input", ".edit-amount input", ".subcategory-row strong", ".section-title span"];
+    for (const selector of selectors) {
+      for (const element of Array.from(document.querySelectorAll(selector))) {
+        if (!(element instanceof HTMLElement)) continue;
+        const style = getComputedStyle(element);
+        if (style.textAlign !== "right") return `${selector} is niet rechts uitgelijnd.`;
+        if (!style.fontVariantNumeric.includes("tabular") && style.fontVariantNumeric !== "normal") {
+          return `${selector} heeft onverwachte cijferstijl.`;
+        }
+      }
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Excel-uitlijning faalde: ${issue}`);
+}
+
+async function expectRecentRowGlow(page, description) {
+  const issue = await page.evaluate((text) => {
+    const row = Array.from(document.querySelectorAll(".entry-row")).find((element) => element.textContent?.includes(text));
+    if (!(row instanceof HTMLElement)) return "Nieuwe rij niet gevonden.";
+    if (!row.classList.contains("recent-row")) return "Nieuwe rij kreeg geen korte highlight.";
+
+    const style = getComputedStyle(row);
+    if (style.animationName === "none" && style.boxShadow === "none") return "Nieuwe rij heeft geen zichtbare feedback.";
+    return "";
+  }, description);
+
+  if (issue) throw new Error(`Nieuwe-rijcontrole faalde: ${issue}`);
+}
+
+async function expectStatusBarDoesNotOverlapCards(page, label) {
+  const issue = await page.evaluate(() => {
+    const statusBar = document.querySelector(".status-bar");
+    if (!(statusBar instanceof HTMLElement)) return "Statusbalk ontbreekt.";
+    const statusRect = statusBar.getBoundingClientRect();
+    const blockers = Array.from(document.querySelectorAll(".new-entry-panel, .edit-row, .month-footer, :focus")).filter((element) => {
+      if (!(element instanceof HTMLElement)) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+
+    for (const element of blockers) {
+      const rect = element.getBoundingClientRect();
+      const overlaps = rect.left < statusRect.right && rect.right > statusRect.left && rect.top < statusRect.bottom && rect.bottom > statusRect.top;
+      if (overlaps) return `Statusbalk overlapt ${element.className || element.tagName}.`;
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Footer-overlapcontrole faalde (${label}): ${issue}`);
+}
+
+async function expectDarkModeMonthHeaders(page) {
+  const issue = await page.evaluate(() => {
+    const main = document.querySelector("main");
+    if (!main?.classList.contains("evening")) return "Avondmodus is niet actief.";
+
+    const headers = Array.from(document.querySelectorAll(".month-card .month-header")).filter((header) => {
+      const rect = header.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+    if (headers.length === 0) return "Geen zichtbare maandheaders gevonden.";
+
+    for (const header of headers) {
+      if (!(header instanceof HTMLElement)) continue;
+      const background = getComputedStyle(header).backgroundColor;
+      const color = getComputedStyle(header).color;
+      const brightness = averageBrightness(background);
+      if (brightness > 96) return `Maandheader is te licht in avondmodus (${background}).`;
+      if (averageBrightness(color) < 150) return `Maandheadertekst is te donker in avondmodus (${color}).`;
+    }
+    return "";
+
+    function averageBrightness(cssColor) {
+      const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return 0;
+      return (Number(match[1]) + Number(match[2]) + Number(match[3])) / 3;
+    }
+  });
+
+  if (issue) throw new Error(`Donkere-moduscontrole faalde: ${issue}`);
 }
 
 async function expectActiveCardCenteredEnough(page, monthNumber) {
@@ -928,6 +1123,15 @@ function request(url) {
 
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function devCommand() {
+  return process.platform === "win32" ? "cmd.exe" : npmCommand();
+}
+
+function devArgs() {
+  const args = ["run", "dev", "--", "--port", String(port), "--strictPort"];
+  return process.platform === "win32" ? ["/c", npmCommand(), ...args] : args;
 }
 
 function chromePath() {

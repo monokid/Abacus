@@ -1,7 +1,8 @@
 :root {
   font-family:
-    "Segoe UI",
     "Aptos",
+    "Segoe UI Variable",
+    "Segoe UI",
     system-ui,
     sans-serif;
   color: #1f261d;
@@ -26,6 +27,7 @@ button {
 
 main {
   min-height: 100vh;
+  padding-bottom: 62px;
   background:
     linear-gradient(180deg, rgba(251, 247, 237, 0.96), rgba(236, 228, 211, 0.96)),
     #efe8d9;
@@ -58,17 +60,32 @@ main.evening {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   border: 2px solid #b9934d;
   border-radius: 50%;
   color: #31583d;
   background: #f6efd9;
+  overflow: hidden;
+}
+
+.brand-mark img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
 }
 
 .evening .brand-mark {
@@ -121,6 +138,28 @@ h1 {
 
 .header-actions {
   justify-content: flex-end;
+}
+
+.settings-panel {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  padding: 7px 24px;
+  border-bottom: 1px solid rgba(105, 87, 53, 0.14);
+  background: rgba(250, 246, 235, 0.92);
+}
+
+.settings-panel > div:first-child {
+  display: grid;
+  gap: 2px;
+  color: #536047;
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.settings-panel strong {
+  color: #253020;
 }
 
 .mode-switch {
@@ -184,6 +223,31 @@ h1 {
   color: #fff8e7;
 }
 
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 20;
+  width: max-content;
+  max-width: 220px;
+  padding: 5px 7px;
+  border: 1px solid rgba(72, 86, 54, 0.22);
+  border-radius: 5px;
+  background: rgba(35, 45, 31, 0.94);
+  color: #fff8e7;
+  box-shadow: 0 8px 18px rgba(35, 28, 15, 0.22);
+  content: attr(data-tooltip);
+  font-size: 0.74rem;
+  line-height: 1.25;
+  pointer-events: none;
+  white-space: normal;
+}
+
 .icon-button,
 .month-tools button,
 .entry-row button,
@@ -196,9 +260,20 @@ h1 {
 .evening .icon-button,
 .evening .month-tools button,
 .evening .entry-row button,
-.evening .new-entry-panel button {
+.evening .new-entry-panel button,
+.evening .subcategory-add {
   border-color: rgba(219, 190, 118, 0.32);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.evening .settings-panel {
+  background: rgba(22, 36, 29, 0.96);
+  border-color: rgba(219, 190, 118, 0.16);
+}
+
+.evening .settings-panel > div:first-child,
+.evening .settings-panel strong {
+  color: #eadbb6;
 }
 
 .year-strip {
@@ -383,7 +458,7 @@ h1 {
   align-items: flex-start;
   gap: 16px;
   overflow-x: auto;
-  padding: 10px 24px 26px;
+  padding: 10px 24px 76px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -520,22 +595,12 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.carry-row,
 .grid-head,
 .entry-row {
   display: grid;
   grid-template-columns: 1.05fr 1.42fr 0.78fr 62px;
   align-items: center;
   gap: 8px;
-}
-
-.carry-row {
-  grid-template-columns: 1fr auto;
-  margin: 9px 14px 8px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: rgba(225, 217, 190, 0.46);
-  color: #415237;
 }
 
 .grid-head {
@@ -576,9 +641,23 @@ h1 {
   background: rgba(190, 142, 44, 0.09);
 }
 
+.section-title svg {
+  stroke-width: 1.9;
+}
+
+.section-title span,
+.subcategory-row strong,
+.grid-head span:nth-child(3),
+.entry-row strong,
+.year-stat strong,
+.month-footer strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .subcategory-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto 28px;
+  grid-template-columns: minmax(0, 1fr) auto 28px;
   gap: 8px;
   align-items: center;
   margin-top: 4px;
@@ -592,16 +671,10 @@ h1 {
 }
 
 .subcategory-row span,
-.subcategory-row em {
+.subcategory-row strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.subcategory-row em {
-  color: #887a5e;
-  font-style: normal;
-  font-size: 0.72rem;
 }
 
 .subcategory-add {
@@ -612,13 +685,57 @@ h1 {
 }
 
 .entry-row {
-  min-height: 29px;
-  padding: 2px 0;
+  min-height: 27px;
+  padding: 1px 0;
   border-bottom: 1px solid rgba(112, 92, 58, 0.075);
   color: #273320;
-  font-family: "Aptos", "Segoe UI", system-ui, sans-serif;
-  font-size: 0.89rem;
+  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
+}
+
+.carry-entry {
+  margin: 2px 0 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(64, 116, 72, 0.16);
+  border-radius: 6px;
+  background: rgba(70, 129, 82, 0.08);
+  color: #31543a;
+}
+
+.carry-entry strong {
+  color: #235232;
+}
+
+.locked-row {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  color: #6b745a;
+  font-size: 0.76rem;
+}
+
+.recent-row {
+  animation: new-row-glow 1.45s ease-out;
+}
+
+@keyframes new-row-glow {
+  0% {
+    background: rgba(202, 170, 83, 0.28);
+    box-shadow: inset 3px 0 0 rgba(178, 139, 61, 0.72);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 3px 0 0 rgba(178, 139, 61, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recent-row {
+    animation: none;
+    box-shadow: inset 3px 0 0 rgba(178, 139, 61, 0.72);
+  }
 }
 
 .entry-row span,
@@ -858,9 +975,25 @@ h1 {
   border-color: rgba(219, 190, 118, 0.15);
 }
 
-.evening .carry-row,
+.evening .month-header {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--month-accent) 32%, rgba(18, 34, 27, 0.98)), rgba(18, 34, 27, 0.94) 58%),
+    #12221b;
+  border-color: rgba(219, 190, 118, 0.18);
+}
+
 .evening .month-footer {
   background: rgba(255, 255, 255, 0.06);
+}
+
+.evening .carry-entry {
+  color: #d9e6c9;
+  border-color: rgba(126, 169, 109, 0.24);
+  background: rgba(87, 132, 81, 0.13);
+}
+
+.evening .carry-entry strong {
+  color: #d8e8bb;
 }
 
 .evening .month-header span,
@@ -907,6 +1040,13 @@ h1 {
 .evening .subcategory-row {
   color: #eadbb6;
   border-color: rgba(219, 190, 118, 0.18);
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.evening .entry-row span:first-child,
+.evening .entry-row span:nth-child(2),
+.evening .entry-row strong {
+  color: #f0e7cf;
 }
 
 .evening .section-title.income,
@@ -917,19 +1057,24 @@ h1 {
 }
 
 .status-bar {
-  position: sticky;
-  bottom: 8px;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 8;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin: 0 18px 14px;
-  padding: 10px 14px;
+  margin: 0;
+  padding: 9px 24px;
   border: 1px solid rgba(105, 87, 53, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 253, 247, 0.94);
-  box-shadow: 0 10px 26px rgba(65, 51, 26, 0.14);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  background: #fffdf7;
+  box-shadow: 0 -8px 22px rgba(65, 51, 26, 0.12);
   color: #526144;
   font-size: 0.88rem;
 }
@@ -965,11 +1110,13 @@ h1 {
   }
 
   .status-bar {
-    margin: 0 18px 18px;
+    right: 0;
+    bottom: 0;
+    left: 0;
     flex-wrap: wrap;
     justify-content: center;
     gap: 6px 12px;
-    padding: 8px 10px;
+    padding: 7px 10px;
     font-size: 0.82rem;
   }
 }

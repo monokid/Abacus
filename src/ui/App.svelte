@@ -8,16 +8,18 @@
     CheckCircle2,
     Clock,
     Download,
+    HandCoins,
     History,
     Lock,
     MessageCircle,
     Moon,
     Pencil,
     Plus,
+    ReceiptEuro,
     RotateCcw,
-    ScrollText,
     Settings,
     Shield,
+    ShoppingBasket,
     Sun,
     Trash2,
     X,
@@ -41,6 +43,7 @@
   import oktoberImage from "../../assets/months/oktober.png";
   import novemberImage from "../../assets/months/november.png";
   import decemberImage from "../../assets/months/december.png";
+  import abacusMark from "../../assets/brand/abacus-mark.png";
 
   interface DraftEntry {
     party: string;
@@ -69,9 +72,12 @@
   let book = $state(initialBook);
   let appMode = $state<AppMode>("demo");
   let activeMonth = $state(1);
+  let showSettings = $state(false);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
   let expandedDraftKey = $state<string | null>(null);
+  let recentEntryId = $state<string | null>(null);
+  let recentEntryTimer = 0;
   let editingEntryId = $state<string | null>(null);
   let deleteConfirmEntryId = $state<string | null>(null);
   let editDraft = $state<DraftEntry>(emptyDraft());
@@ -196,6 +202,18 @@
     });
   }
 
+  function selectCurrentMonth(): void {
+    selectMonth(currentMonthInSelectedYear ?? 1);
+  }
+
+  function nextMonth(monthNumber: number): number {
+    return monthNumber === 12 ? 1 : monthNumber + 1;
+  }
+
+  function previousMonth(monthNumber: number): number {
+    return monthNumber === 1 ? 12 : monthNumber - 1;
+  }
+
   function activateMonthForInput(monthNumber: number): void {
     if (activeMonth === monthNumber) return;
     activeMonth = monthNumber;
@@ -307,8 +325,9 @@
       return;
     }
 
+    const newEntryId = `demo-${month.month}-${section}-${Date.now()}`;
     month.entries.push({
-      id: `demo-${month.month}-${section}-${Date.now()}`,
+      id: newEntryId,
       section,
       subcategoryId,
       date: `${selectedYear.year}-${String(month.month).padStart(2, "0")}-01`,
@@ -318,6 +337,7 @@
       comment: "",
       createdAt: Date.now(),
     });
+    markRecentEntry(newEntryId);
 
     drafts[key] = {
       party: "",
@@ -327,6 +347,14 @@
     };
     if (expandedDraftKey === key) expandedDraftKey = null;
     activeMonth = month.month;
+  }
+
+  function markRecentEntry(entryId: string): void {
+    recentEntryId = entryId;
+    window.clearTimeout(recentEntryTimer);
+    recentEntryTimer = window.setTimeout(() => {
+      if (recentEntryId === entryId) recentEntryId = null;
+    }, 1600);
   }
 
   function startEdit(month: BudgetMonth, entry: Entry): void {
@@ -474,39 +502,48 @@
 
 <main class:evening>
   <header class="app-header">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">
-        <Shield size={28} strokeWidth={1.8} />
-      </div>
+    <button class="brand" type="button" aria-label="Ga naar huidige maand" title="Ga naar huidige maand" data-tooltip="Ga naar huidige maand" onclick={selectCurrentMonth}>
+      <span class="brand-mark" aria-hidden="true">
+        <img src={abacusMark} alt="" />
+      </span>
       <div>
         <h1>Abacus</h1>
         <p>Jaarbegroting {selectedYear.year}</p>
       </div>
-    </div>
+    </button>
 
     <nav class="toolbar" aria-label="Hoofdnavigatie">
-      <button class="tool active" type="button"><CalendarDays size={18} /><span class="tool-label">Jaar</span></button>
-      <button class="tool" type="button"><RotateCcw size={18} /><span class="tool-label">Bewerken</span></button>
-      <button class="tool" type="button"><Settings size={18} /><span class="tool-label">Instellingen</span></button>
-      <button class="tool" type="button"><Shield size={18} /><span class="tool-label">Veiligheid</span></button>
-      <button class="tool" type="button"><History size={18} /><span class="tool-label">Historiek</span></button>
+      <button class="tool active" type="button" title="Jaaroverzicht" data-tooltip="Jaaroverzicht"><CalendarDays size={18} /><span class="tool-label">Jaar</span></button>
+      <button class="tool" type="button" title="Bewerken" data-tooltip="Bewerken"><RotateCcw size={18} /><span class="tool-label">Bewerken</span></button>
+      <button class:active={showSettings} class="tool" type="button" title="Instellingen" data-tooltip="Instellingen" onclick={() => (showSettings = !showSettings)}><Settings size={18} /><span class="tool-label">Instellingen</span></button>
+      <button class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid"><Shield size={18} /><span class="tool-label">Veiligheid</span></button>
+      <button class="tool" type="button" title="Historiek" data-tooltip="Historiek"><History size={18} /><span class="tool-label">Historiek</span></button>
     </nav>
 
     <div class="header-actions">
-      <div class="mode-switch" aria-label="Gegevensmodus">
-        <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
-        <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
-      </div>
-      <button class="icon-button" type="button" aria-label="Weergave wisselen" onclick={() => (evening = !evening)}>
+      <button class="icon-button" type="button" aria-label="Weergave wisselen" title="Weergave wisselen" data-tooltip="Weergave wisselen" onclick={() => (evening = !evening)}>
         {#if evening}
           <Sun size={19} />
         {:else}
           <Moon size={19} />
         {/if}
       </button>
-      <button class="primary-action" type="button"><Download size={18} />Overzicht</button>
+      <button class="primary-action" type="button" title="Overzicht maken" data-tooltip="Overzicht maken"><Download size={18} />Overzicht</button>
     </div>
   </header>
+
+  {#if showSettings}
+    <section class="settings-panel" aria-label="Instellingen">
+      <div>
+        <strong>Gegevensmodus</strong>
+        <span>{appMode === "demo" ? "Leermodus gebruikt de fictieve begroting 2026." : "Echte modus bewaart apart van de leermodus."}</span>
+      </div>
+      <div class="mode-switch" aria-label="Gegevensmodus">
+        <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
+        <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+      </div>
+    </section>
+  {/if}
 
   <section class="year-strip" aria-label="Jaaroverzicht">
     <div class="year-pill active">{selectedYear.year}</div>
@@ -545,6 +582,11 @@
   </section>
 
   <section class="board" aria-label="Maandkaarten">
+    <button class="year-loop-card year-loop-start" type="button" title="Naar december" data-tooltip="Naar december" onclick={() => selectMonth(12)}>
+      <span>December</span>
+      <strong>Naar jaareinde</strong>
+    </button>
+    <div class="board-spacer board-spacer-start" aria-hidden="true"></div>
     {#each selectedYear.months as month}
       {@const total = monthTotal(month.month)}
       <div
@@ -566,22 +608,17 @@
             <h2>{monthName(month.month)}</h2>
           </div>
           <div class="month-tools">
-            <button type="button" aria-label="Vorige maand" disabled={month.month === 1} onclick={() => selectMonth(month.month - 1)}>
+            <button type="button" aria-label="Vorige maand" title="Vorige maand" data-tooltip="Vorige maand" onclick={() => selectMonth(previousMonth(month.month))}>
               <ChevronLeft size={18} />
             </button>
-            <button type="button" aria-label="Volgende maand" disabled={month.month === 12} onclick={() => selectMonth(month.month + 1)}>
+            <button type="button" aria-label="Volgende maand" title="Volgende maand" data-tooltip="Volgende maand" onclick={() => selectMonth(nextMonth(month.month))}>
               <ChevronRight size={18} />
             </button>
-            <button type="button" aria-label="Controle"><CheckCircle2 size={18} /></button>
-            <button type="button" aria-label="Opmerkingen"><MessageCircle size={18} /></button>
-            <button type="button" aria-label="Maand afsluiten"><Lock size={18} /></button>
+            <button type="button" aria-label="Controle" title="Controle" data-tooltip="Controle"><CheckCircle2 size={18} /></button>
+            <button type="button" aria-label="Opmerkingen" title="Opmerkingen" data-tooltip="Opmerkingen"><MessageCircle size={18} /></button>
+            <button type="button" aria-label="Maand afsluiten" title="Maand afsluiten" data-tooltip="Maand afsluiten"><Lock size={18} /></button>
           </div>
         </header>
-
-        <div class="carry-row">
-          <span>Resterend van vorige maand</span>
-          <strong>{formatMoneyCents(total?.startCents ?? 0)}</strong>
-        </div>
 
         <div class="grid-head">
           <span>Partij</span>
@@ -593,22 +630,38 @@
         {#each sections as section}
           <section class="budget-section" aria-label={SECTION_LABELS[section]}>
             <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="section-title">
-              <ScrollText size={16} />
+              {#if section === "inkomsten"}
+                <HandCoins size={16} />
+              {:else if section === "vaste_kosten"}
+                <ReceiptEuro size={16} />
+              {:else}
+                <ShoppingBasket size={16} />
+              {/if}
               <strong>{SECTION_LABELS[section]}</strong>
               <span>{formatMoneyCents(sectionTotal(month, section))}</span>
             </div>
 
+            {#if section === "inkomsten"}
+              <div class="entry-row carry-entry" data-transfer-row="true">
+                <span>Overdracht</span>
+                <span>Resterend van vorige maand</span>
+                <strong>{formatDecimalCents(total?.startCents ?? 0)}</strong>
+                <span class="locked-row"><Lock size={14} aria-hidden="true" /> Vast</span>
+              </div>
+            {/if}
+
             {#each subcategoriesFor(section) as subcategory}
               {@const groupedEntries = entriesFor(month, section, subcategory.id)}
               {@const subcategoryTotal = total?.bySubcategoryCents[subcategory.id] ?? 0}
-              <div class="subcategory-row">
+              <div class="subcategory-row" data-entry-count={groupedEntries.length}>
                 <span>{subcategory.name}</span>
-                <em>{groupedEntries.length}</em>
                 <strong>{formatMoneyCents(subcategoryTotal)}</strong>
                 <button
                   class="subcategory-add"
                   type="button"
                   aria-label={`Invoer openen voor ${subcategory.name}`}
+                  title={`Invoer openen voor ${subcategory.name}`}
+                  data-tooltip={`Invoer openen voor ${subcategory.name}`}
                   onclick={() => openDraft(month.month, section, subcategory.id)}
                 >
                   <Plus size={15} />
@@ -708,8 +761,8 @@
                         {/if}
                       </label>
                       <span class="row-actions">
-                        <button class="save-row" type="button" aria-label="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
-                        <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
+                        <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                        <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                       </span>
                     </div>
                     {#if deleteConfirmEntryId === entry.id}
@@ -719,18 +772,18 @@
                         <button type="button" aria-label="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
                       </div>
                     {:else}
-                      <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} onclick={() => requestDelete(entry)}>
+                      <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title="Verwijderen voorbereiden" data-tooltip="Verwijderen voorbereiden" onclick={() => requestDelete(entry)}>
                         <Trash2 size={15} />
                         Verwijderen
                       </button>
                     {/if}
                   {:else}
-                    <div class="entry-row" data-entry-row={entry.id}>
+                    <div class:recent-row={recentEntryId === entry.id} class="entry-row" data-entry-row={entry.id}>
                       <span title={entry.party || "-"}>{entry.party || "-"}</span>
                       <span title={entry.description}>{entry.description}</span>
                       <strong>{formatDecimalCents(entry.amountCents)}</strong>
                       <span class="row-actions">
-                        <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                        <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                       </span>
                     </div>
                   {/if}
@@ -772,29 +825,29 @@
                     {/if}
                   </label>
                   <span class="row-actions">
-                    <button class="save-row" type="button" aria-label="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
-                    <button type="button" aria-label="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
+                    <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                    <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                   </span>
                 </div>
                 {#if deleteConfirmEntryId === entry.id}
                   <div class="delete-confirm-row" data-testid={`delete-confirm-${entry.id}`}>
                     <span>Deze regel verwijderen?</span>
-                    <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
-                    <button type="button" aria-label="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
+                    <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" title="Verwijderen bevestigen" data-tooltip="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
+                    <button type="button" aria-label="Verwijderen annuleren" title="Verwijderen annuleren" data-tooltip="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
                   </div>
                 {:else}
-                  <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} onclick={() => requestDelete(entry)}>
+                    <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title="Verwijderen voorbereiden" data-tooltip="Verwijderen voorbereiden" onclick={() => requestDelete(entry)}>
                     <Trash2 size={15} />
                     Verwijderen
                   </button>
                 {/if}
               {:else}
-                <div class="entry-row" data-entry-row={entry.id}>
+                <div class:recent-row={recentEntryId === entry.id} class="entry-row" data-entry-row={entry.id}>
                   <span title={entry.party || "-"}>{entry.party || "-"}</span>
                   <span title={entry.description}>{entry.description}</span>
                   <strong>{formatDecimalCents(entry.amountCents)}</strong>
                   <span class="row-actions">
-                    <button type="button" aria-label={`Regel bewerken: ${entry.description}`} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                    <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                   </span>
                 </div>
               {/if}
@@ -822,7 +875,7 @@
   </section>
 
   <footer class="status-bar">
-    <span>{appMode === "demo" ? "Leermodus" : "Productie"} · {saveStatus}</span>
+    <span>{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
     <strong>{monthName(activeMonth)} geselecteerd</strong>
     <span><Clock size={15} /> {currentClock}</span>
     <span>Eindsaldo jaar {formatMoneyCents(totals.endCents)}</span>
