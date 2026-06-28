@@ -53,6 +53,7 @@ try {
   await expectMonthFootersAligned(page, "eerste laadbeurt");
   await expectBrandReturnsToCurrentMonth(page);
   await expectModeSwitchSeparatesDemo(page);
+  await expectCategorySettingsManagement(page);
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectDistinctSectionIcons(page);
@@ -1158,6 +1159,39 @@ async function expectModeSwitchSeparatesDemo(page) {
   await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Jaar" }).click();
   await expectHiddenText(page, "Gegevensmodus");
+}
+
+async function expectCategorySettingsManagement(page) {
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await expectVisibleText(page, "Categorieen");
+
+  await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").fill("Apotheek Extra");
+  await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").press("Enter");
+  await expectVisibleText(page, "Apotheek Extra toegevoegd");
+  await expectVisibleText(page, "0 boekingen");
+
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 6);
+  await expectVisibleText(page, "Apotheek Extra");
+  await openDraft(page, 6, "variabele_kosten", "sub-variabele-apotheek-extra", "Apotheek Extra");
+  const draft = page.locator('[data-testid="draft-6-variabele_kosten-sub-variabele-apotheek-extra"]');
+  await draft.locator('input[aria-label^="Partij"]').fill("Apotheek");
+  await draft.locator('input[aria-label^="Omschrijving"]').fill("Nieuwe zalf");
+  await draft.locator('input[aria-label^="Bedrag"]').fill("12,50");
+  await draft.getByLabel("Nieuwe regel toevoegen aan Apotheek Extra").click();
+  await expectVisibleText(page, "Nieuwe zalf");
+
+  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByLabel("Naam van subcategorie Apotheek Extra").fill("Apotheek");
+  await page.keyboard.press("Tab");
+  await expectVisibleText(page, "Apotheek bewaard");
+  await expectVisibleText(page, "1 boeking");
+
+  await page.reload({ waitUntil: "networkidle" });
+  await expectVisibleText(page, "Jaarbegroting 2026");
+  await navigateToMonth(page, 6);
+  await expectVisibleText(page, "Apotheek");
+  await expectVisibleText(page, "Nieuwe zalf");
 }
 
 async function expectTooltips(page) {

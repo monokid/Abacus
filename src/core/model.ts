@@ -32,6 +32,11 @@ export interface Subcategory {
   hidden?: boolean;
 }
 
+export interface SubcategoryUsage {
+  entries: number;
+  recurringRules: number;
+}
+
 export type RecurringFrequency = "monthly" | "quarterly" | "yearly" | "months" | "dates" | "weekday";
 
 export interface RecurringRule {
@@ -142,6 +147,65 @@ export function subcategoriesFor(book: Book, section: Section): Subcategory[] {
     .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "nl-BE"));
 }
 
+export function allSubcategoriesFor(book: Book, section: Section): Subcategory[] {
+  return [...book.subcategories]
+    .filter((subcategoryItem) => subcategoryItem.section === section)
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "nl-BE"));
+}
+
+export function addSubcategory(book: Book, section: Section, rawName: string, idSeed = Date.now()): Subcategory {
+  const name = normalizeSubcategoryName(rawName);
+  assertSubcategoryNameAvailable(book, section, name);
+  const siblings = allSubcategoriesFor(book, section);
+  const sortOrder = siblings.reduce((highest, item) => Math.max(highest, item.sortOrder), 0) + 10;
+  const prefix = section.replace("_kosten", "").replace("_", "-");
+  const subcategoryItem: Subcategory = {
+    id: uniqueSubcategoryId(book, `sub-${prefix}-${slugify(name) || "nieuw"}`, idSeed),
+    section,
+    name,
+    sortOrder,
+  };
+  book.subcategories.push(subcategoryItem);
+  return subcategoryItem;
+}
+
+export function renameSubcategory(book: Book, subcategoryId: string, rawName: string): Subcategory {
+  const subcategoryItem = findSubcategory(book, subcategoryId);
+  if (!subcategoryItem) throw new Error("Subcategorie niet gevonden.");
+  const name = normalizeSubcategoryName(rawName);
+  if (subcategoryItem.name === name) return subcategoryItem;
+  assertSubcategoryNameAvailable(book, subcategoryItem.section, name, subcategoryItem.id);
+  subcategoryItem.name = name;
+  return subcategoryItem;
+}
+
+export function moveSubcategory(book: Book, subcategoryId: string, direction: -1 | 1): void {
+  const subcategoryItem = findSubcategory(book, subcategoryId);
+  if (!subcategoryItem) throw new Error("Subcategorie niet gevonden.");
+  const siblings = allSubcategoriesFor(book, subcategoryItem.section);
+  const index = siblings.findIndex((item) => item.id === subcategoryId);
+  const swapIndex = index + direction;
+  if (index < 0 || swapIndex < 0 || swapIndex >= siblings.length) return;
+
+  const target = siblings[swapIndex];
+  if (!target) return;
+  const currentOrder = subcategoryItem.sortOrder;
+  subcategoryItem.sortOrder = target.sortOrder;
+  target.sortOrder = currentOrder;
+  normalizeSubcategorySortOrder(book, subcategoryItem.section);
+}
+
+export function subcategoryUsage(book: Book, subcategoryId: string): SubcategoryUsage {
+  let entries = 0;
+  for (const year of book.years) {
+    for (const month of year.months) {
+      entries += month.entries.filter((entry) => entry.subcategoryId === subcategoryId).length;
+    }
+  }
+  const recurringRules = book.recurringRules.filter((rule) => rule.subcategoryId === subcategoryId).length;
+  return { entries, recurringRules };
+}
+
 export function validateBook(book: Book): string[] {
   const issues: string[] = [];
   const validFrequencies = new Set<RecurringFrequency>(["monthly", "quarterly", "yearly", "months", "dates", "weekday"]);
@@ -159,6 +223,19 @@ export function validateBook(book: Book): string[] {
     subcategoryIds.add(item.id);
     if (!isSection(item.section)) issues.push(`Subcategorie '${item.name}' heeft een onbekende hoofdgroep.`);
     if (!item.name.trim()) issues.push(`Subcategorie '${item.id}' heeft geen naam.`);
+    if (!Number.isFinite(item.sortOrder) || !Number.isInteger(item.sortOrder)) {
+      issues.push(`Subcategorie '${item.name}' heeft een ongeldige volgorde.`);
+    }
+  }
+
+  for (const section of SECTIONS) {
+    const names = new Set<string>();
+    for (const item of (book.subcategories ?? []).filter((subcategoryItem) => subcategoryItem.section === section)) {
+      const normalizedName = item.name.trim().toLocaleLowerCase("nl-BE");
+      if (!normalizedName) continue;
+      if (names.has(normalizedName)) issues.push(`Dubbele subcategorie '${item.name}' in ${section}.`);
+      names.add(normalizedName);
+    }
   }
 
   const ruleIds = new Set<string>();
@@ -239,6 +316,51 @@ export function validateBook(book: Book): string[] {
 
 function subcategory(id: string, section: Section, name: string, sortOrder: number): Subcategory {
   return { id, section, name, sortOrder };
+}
+
+function findSubcategory(book: Book, subcategoryId: string): Subcategory | undefined {
+  return book.subcategories.find((item) => item.id === subcategoryId);
+}
+
+function normalizeSubcategoryName(rawName: string): string {
+  const name = rawName.trim().replace(/\s+/g, " ");
+  if (!name) throw new Error("Subcategorie heeft een naam nodig.");
+  return name;
+}
+
+function assertSubcategoryNameAvailable(book: Book, section: Section, name: string, exceptId?: string): void {
+  const normalizedName = name.toLocaleLowerCase("nl-BE");
+  const duplicate = book.subcategories.find(
+    (item) => item.section === section && item.id !== exceptId && item.name.trim().toLocaleLowerCase("nl-BE") === normalizedName,
+  );
+  if (duplicate) throw new Error("Deze subcategorie bestaat al in deze hoofdgroep.");
+}
+
+function uniqueSubcategoryId(book: Book, baseId: string, idSeed: number): string {
+  const existingIds = new Set(book.subcategories.map((item) => item.id));
+  if (!existingIds.has(baseId)) return baseId;
+  let suffix = Math.abs(Math.trunc(idSeed));
+  let candidate = `${baseId}-${suffix}`;
+  while (existingIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseId}-${suffix}`;
+  }
+  return candidate;
+}
+
+function slugify(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeSubcategorySortOrder(book: Book, section: Section): void {
+  allSubcategoriesFor(book, section).forEach((item, index) => {
+    item.sortOrder = (index + 1) * 10;
+  });
 }
 
 export function sectionFromDutchLabel(label: string): Section | null {

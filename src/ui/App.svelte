@@ -4,6 +4,8 @@
     CalendarDays,
     ChevronLeft,
     ChevronRight,
+    ArrowDown,
+    ArrowUp,
     Check,
     CheckCircle2,
     Clock,
@@ -26,7 +28,15 @@
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
   import { formatMoneyCents, formatDecimalCents, parseMoneyToCents } from "../core/money";
-  import { createEmptyBook, validateBook } from "../core/model";
+  import {
+    addSubcategory as addBookSubcategory,
+    allSubcategoriesFor,
+    createEmptyBook,
+    moveSubcategory as moveBookSubcategory,
+    renameSubcategory as renameBookSubcategory,
+    subcategoryUsage,
+    validateBook,
+  } from "../core/model";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
   import type { Book, BudgetMonth, Entry, Subcategory } from "../core/model";
@@ -73,6 +83,13 @@
   const demoStorageKey = "abacus.demo.2026.v2";
   const productionStorageKey = "abacus.book.v1";
   const modeStorageKey = "abacus.mode.v1";
+  const viewLabels: Record<AppView, string> = {
+    year: "Jaar",
+    edit: "Bewerken",
+    settings: "Instellingen",
+    safety: "Veiligheid",
+    history: "Historiek",
+  };
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const initialBook = fictionalSampleBook();
   const today = new Date();
@@ -97,6 +114,12 @@
   let saveStatus = $state("Voorbeeldgegevens");
   let currentClock = $state(formatClock(new Date()));
   let currentDateLabel = $state(formatLongDate(new Date()));
+  let newSubcategoryNames = $state<Record<Section, string>>({
+    inkomsten: "",
+    vaste_kosten: "",
+    variabele_kosten: "",
+  });
+  let subcategoryMessage = $state("");
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -278,9 +301,73 @@
   }
 
   function subcategoriesFor(section: Section): Subcategory[] {
-    return book.subcategories
-      .filter((subcategory) => subcategory.section === section && !subcategory.hidden)
-      .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "nl-BE"));
+    return allSubcategoriesFor(book, section).filter((subcategory) => !subcategory.hidden);
+  }
+
+  function settingsSubcategoriesFor(section: Section): Subcategory[] {
+    return allSubcategoriesFor(book, section);
+  }
+
+  function addSubcategory(section: Section): void {
+    try {
+      const subcategoryItem = addBookSubcategory(book, section, newSubcategoryNames[section]);
+      ensureDraftsForSubcategory(subcategoryItem);
+      newSubcategoryNames[section] = "";
+      subcategoryMessage = `${subcategoryItem.name} toegevoegd aan ${SECTION_LABELS[section]}.`;
+    } catch (error) {
+      subcategoryMessage = error instanceof Error ? error.message : "Subcategorie kon niet worden toegevoegd.";
+    }
+  }
+
+  function maybeAddSubcategoryFromKey(event: KeyboardEvent, section: Section): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addSubcategory(section);
+  }
+
+  function renameSubcategory(subcategoryId: string, event: Event): void {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLInputElement)) return;
+    try {
+      const subcategoryItem = renameBookSubcategory(book, subcategoryId, target.value);
+      target.value = subcategoryItem.name;
+      subcategoryMessage = `${subcategoryItem.name} bewaard.`;
+    } catch (error) {
+      const subcategoryItem = book.subcategories.find((item) => item.id === subcategoryId);
+      if (subcategoryItem) target.value = subcategoryItem.name;
+      subcategoryMessage = error instanceof Error ? error.message : "Naam kon niet worden bewaard.";
+    }
+  }
+
+  function moveSubcategory(subcategoryId: string, direction: -1 | 1): void {
+    try {
+      moveBookSubcategory(book, subcategoryId, direction);
+      subcategoryMessage = "Volgorde aangepast.";
+    } catch (error) {
+      subcategoryMessage = error instanceof Error ? error.message : "Volgorde kon niet worden aangepast.";
+    }
+  }
+
+  function ensureDraftsForSubcategory(subcategory: Subcategory): void {
+    const nextDrafts = { ...drafts };
+    for (const year of book.years) {
+      for (const month of year.months) {
+        const key = draftKey(month.month, subcategory.section, subcategory.id);
+        nextDrafts[key] ??= emptyDraft();
+      }
+    }
+    drafts = nextDrafts;
+  }
+
+  function subcategoryUsageLabel(subcategoryId: string): string {
+    const usage = subcategoryUsage(book, subcategoryId);
+    const parts = [`${usage.entries} boeking${usage.entries === 1 ? "" : "en"}`];
+    if (usage.recurringRules > 0) parts.push(`${usage.recurringRules} regel${usage.recurringRules === 1 ? "" : "s"}`);
+    return parts.join(", ");
+  }
+
+  function statusCenterLabel(): string {
+    return activeView === "year" ? `${monthName(activeMonth)} geselecteerd` : viewLabels[activeView];
   }
 
   function entriesFor(month: BudgetMonth, section: Section, subcategoryId: string | null): Entry[] {
@@ -692,6 +779,62 @@
             <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
           </div>
         </div>
+        <section class="settings-block" aria-label="Categorieen beheren">
+          <header>
+            <div>
+              <h3>Categorieen</h3>
+              <p>Beheer de subcategorieen die onder elke hoofdgroep in de maandkaarten verschijnen.</p>
+            </div>
+            {#if subcategoryMessage}
+              <span class="settings-message" role="status">{subcategoryMessage}</span>
+            {/if}
+          </header>
+
+          <div class="category-settings-grid">
+            {#each sections as section}
+              {@const sectionSubcategories = settingsSubcategoriesFor(section)}
+              <article class:income-settings={section === "inkomsten"} class:fixed-settings={section === "vaste_kosten"} class:variable-settings={section === "variabele_kosten"} class="category-settings-card">
+                <h4>{SECTION_LABELS[section]}</h4>
+                <div class="subcategory-editor-list">
+                  {#each sectionSubcategories as subcategory, index}
+                    <div class="subcategory-editor-row">
+                      <input
+                        aria-label={`Naam van subcategorie ${subcategory.name}`}
+                        value={subcategory.name}
+                        onblur={(event) => renameSubcategory(subcategory.id, event)}
+                        onkeydown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            event.currentTarget.blur();
+                          }
+                        }}
+                      />
+                      <span>{subcategoryUsageLabel(subcategory.id)}</span>
+                      <button type="button" aria-label={`${subcategory.name} omhoog`} title="Omhoog" data-tooltip="Omhoog" disabled={index === 0} onclick={() => moveSubcategory(subcategory.id, -1)}>
+                        <ArrowUp size={15} />
+                      </button>
+                      <button type="button" aria-label={`${subcategory.name} omlaag`} title="Omlaag" data-tooltip="Omlaag" disabled={index === sectionSubcategories.length - 1} onclick={() => moveSubcategory(subcategory.id, 1)}>
+                        <ArrowDown size={15} />
+                      </button>
+                    </div>
+                  {/each}
+                </div>
+
+                <div class="subcategory-add-row">
+                  <input
+                    aria-label={`Nieuwe subcategorie voor ${SECTION_LABELS[section]}`}
+                    bind:value={newSubcategoryNames[section]}
+                    placeholder="Nieuwe subcategorie"
+                    onkeydown={(event) => maybeAddSubcategoryFromKey(event, section)}
+                  />
+                  <button type="button" aria-label={`Subcategorie toevoegen aan ${SECTION_LABELS[section]}`} title="Toevoegen" data-tooltip="Toevoegen" onclick={() => addSubcategory(section)}>
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </article>
+            {/each}
+          </div>
+        </section>
       {:else if activeView === "edit"}
         <header>
           <h2>Bewerken</h2>
@@ -1127,7 +1270,7 @@
 
   <footer class="status-bar">
     <span class="status-mode">{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
-    <strong>{monthName(activeMonth)} geselecteerd</strong>
+    <strong>{statusCenterLabel()}</strong>
     <span class="status-date" title={`${currentDateLabel} ${currentClock}`}>
       <span class="date-label">{currentDateLabel}</span>
       <Clock size={14} aria-hidden="true" />
