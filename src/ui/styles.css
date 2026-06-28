@@ -502,8 +502,12 @@ h1 {
 
 .month-card {
   position: relative;
-  --ledger-columns: minmax(74px, 0.82fr) minmax(120px, 1.48fr) 90px 66px;
-  flex: 0 0 410px;
+  --ledger-pad: 12px;
+  --ledger-gap: 5px;
+  --ledger-amount: 86px;
+  --ledger-action: 60px;
+  --ledger-columns: minmax(88px, 0.82fr) minmax(150px, 1.55fr) var(--ledger-amount) var(--ledger-action);
+  flex: 0 0 440px;
   overflow: hidden;
   border: 1px solid rgba(112, 92, 58, 0.22);
   border-radius: 8px;
@@ -606,19 +610,35 @@ h1 {
   display: grid;
   grid-template-columns: var(--ledger-columns);
   align-items: center;
-  gap: 6px;
+  gap: var(--ledger-gap);
 }
 
 .grid-head {
-  padding: 0 14px 5px;
+  padding: 0 var(--ledger-pad) 5px;
   color: #8f8268;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 650;
   text-transform: uppercase;
 }
 
 .budget-section {
-  padding: 0 14px 7px;
+  padding: 0 var(--ledger-pad) 7px;
+}
+
+.party-head,
+.description-head,
+.amount-head,
+.action-head {
+  min-width: 0;
+  padding-inline: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-head,
+.action-head {
+  text-align: right;
 }
 
 .section-title {
@@ -645,11 +665,13 @@ h1 {
 
 .section-title svg {
   grid-column: 1;
+  margin-left: 4px;
   stroke-width: 1.9;
 }
 
 .section-title strong {
   grid-column: 2;
+  padding-inline: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -657,6 +679,7 @@ h1 {
 
 .section-title span {
   grid-column: 3;
+  padding-inline: 2px;
 }
 
 .section-title span,
@@ -689,10 +712,12 @@ h1 {
 
 .subcategory-row span {
   grid-column: 1 / 3;
+  padding-inline: 4px;
 }
 
 .subcategory-row strong {
   grid-column: 3;
+  padding-inline: 2px;
 }
 
 .subcategory-row .subcategory-add {
@@ -712,7 +737,7 @@ h1 {
   padding: 1px 0;
   border-bottom: 1px solid rgba(112, 92, 58, 0.075);
   color: #273320;
-  font-family: "Aptos", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-family: "Segoe UI", "Aptos", system-ui, sans-serif;
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
@@ -732,9 +757,12 @@ h1 {
 
 .locked-row {
   display: inline-flex;
+  justify-self: end;
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
+  width: var(--ledger-action);
+  padding-right: 7px;
   color: #6b745a;
   font-size: 0.76rem;
 }
@@ -761,23 +789,42 @@ h1 {
   }
 }
 
-.entry-row span,
+.party-cell,
+.description-text,
+.amount-cell,
 .entry-row strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.entry-row span:first-child {
+.party-cell {
+  min-width: 0;
+  padding-inline: 4px;
   color: #536047;
   font-weight: 560;
 }
 
-.entry-row span:nth-child(2) {
+.description-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-inline: 4px;
   color: #1f261d;
 }
 
+.description-text > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.amount-cell,
 .entry-row strong {
+  min-width: 0;
+  padding-inline: 2px;
   text-align: right;
   color: #0c2719;
   font-weight: 760;
@@ -792,14 +839,38 @@ h1 {
 
 .row-actions {
   display: flex;
+  justify-self: end;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 3px;
+  width: var(--ledger-action);
   min-width: 0;
+  padding-right: 1px;
 }
 
 .row-actions button {
   min-height: 28px;
   width: 28px;
+}
+
+.note-indicator {
+  flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-height: 22px;
+  border: 0;
+  border-radius: 999px;
+  color: #2f6a3c;
+  background: rgba(64, 116, 72, 0.1);
+  padding: 0;
+  cursor: pointer;
+}
+
+.note-indicator:hover,
+.note-indicator:focus-visible {
+  color: #fff8e7;
+  background: #355f40;
 }
 
 .row-actions .save-row {
@@ -831,6 +902,11 @@ h1 {
   font: inherit;
   font-variant-numeric: tabular-nums;
   outline: none;
+}
+
+.party-input,
+.description-input {
+  padding-inline: 8px;
 }
 
 .ledger-input:focus,
@@ -958,7 +1034,7 @@ h1 {
 
 .description-cell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr) 27px;
   gap: 4px;
   align-items: start;
   min-width: 0;
@@ -1219,14 +1295,25 @@ h1 {
   background: #8b3f35;
 }
 
+.evening .note-indicator {
+  color: #d9e6c9;
+  background: rgba(126, 169, 109, 0.13);
+}
+
+.evening .note-indicator:hover,
+.evening .note-indicator:focus-visible {
+  color: #10241b;
+  background: #d9e6c9;
+}
+
 .evening .subcategory-row {
   color: #eadbb6;
   border-color: rgba(219, 190, 118, 0.18);
   background: rgba(255, 255, 255, 0.075);
 }
 
-.evening .entry-row span:first-child,
-.evening .entry-row span:nth-child(2),
+.evening .party-cell,
+.evening .description-text,
 .evening .entry-row strong {
   color: #f0e7cf;
 }
@@ -1288,8 +1375,12 @@ h1 {
   }
 
   .month-card {
-    flex-basis: min(88vw, 410px);
-    --ledger-columns: minmax(64px, 0.82fr) minmax(78px, 1.3fr) 68px 62px;
+    --ledger-pad: 8px;
+    --ledger-gap: 4px;
+    --ledger-amount: 72px;
+    --ledger-action: 58px;
+    --ledger-columns: minmax(62px, 0.78fr) minmax(92px, 1.45fr) var(--ledger-amount) var(--ledger-action);
+    flex-basis: min(92vw, 410px);
   }
 
   .status-bar {
@@ -1362,8 +1453,8 @@ h1 {
 
   .grid-head,
   .budget-section {
-    padding-right: 10px;
-    padding-left: 10px;
+    padding-right: var(--ledger-pad);
+    padding-left: var(--ledger-pad);
   }
 
   .delete-confirm-row {
@@ -1379,6 +1470,17 @@ h1 {
   .new-entry-panel button,
   .row-actions button {
     width: 28px;
+  }
+
+  .party-head,
+  .description-head,
+  .amount-head,
+  .action-head,
+  .party-cell,
+  .description-text,
+  .section-title strong,
+  .subcategory-row span {
+    padding-inline: 3px;
   }
 
   .note-popup {

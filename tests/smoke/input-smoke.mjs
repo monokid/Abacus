@@ -51,9 +51,12 @@ try {
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectDistinctSectionIcons(page);
   await expectCarryBalanceInIncomeGrid(page);
+  await expectIconOnlyLockedRows(page);
   await expectNoMonthNumberLabels(page);
+  await expectQuietActionHeaders(page);
   await expectCategoryInputs(page);
   await expectExcelNumberAlignment(page);
+  await expectLedgerBreathingRoom(page, "eerste laadbeurt");
   await expectUnifiedLedgerGrid(page, "eerste laadbeurt");
   await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectIncomePartyInputs(page);
@@ -103,14 +106,14 @@ try {
   await navigateToMonth(page, 9);
   await fillExpense(page, {
     party: "Testwinkel",
-    description: "Test uitgave rooktest",
+    description: "Test uitgave rooktest met langere omschrijving",
     amount: "12,34",
     note: "Uitgebreide melding rooktest",
   });
-  await expectRecentRowGlow(page, "Test uitgave rooktest");
-  await expectVisibleText(page, "Test uitgave rooktest");
+  await expectRecentRowGlow(page, "Test uitgave rooktest met langere omschrijving");
+  await expectVisibleText(page, "Test uitgave rooktest met langere omschrijving");
   await expectVisibleText(page, "12,34");
-  await expectNotePopupFlow(page, "Test uitgave rooktest", "Uitgebreide melding rooktest");
+  await expectNotePopupFlow(page, "Test uitgave rooktest met langere omschrijving", "Uitgebreide melding rooktest");
 
   await fillExpense(page, {
     party: "Foute winkel",
@@ -137,15 +140,15 @@ try {
   await expectVisibleText(page, "124,56");
   await expectHiddenText(page, "Inkomen met partij rooktest");
   await cancelExpenseEdit(page);
-  await expectVisibleText(page, "Test uitgave rooktest");
+  await expectVisibleText(page, "Test uitgave rooktest met langere omschrijving");
   await expectHiddenText(page, "Niet bewaren rooktest");
   await deleteVariableRow(page);
   await expectHiddenText(page, "Klik weg rooktest");
 
   await page.reload({ waitUntil: "networkidle" });
-  await expectVisibleText(page, "Test uitgave rooktest");
+  await expectVisibleText(page, "Test uitgave rooktest met langere omschrijving");
   await navigateToMonth(page, 9);
-  await expectNotePopupFlow(page, "Test uitgave rooktest", "Uitgebreide melding rooktest");
+  await expectNotePopupFlow(page, "Test uitgave rooktest met langere omschrijving", "Uitgebreide melding rooktest");
   await expectHiddenText(page, "Klik weg rooktest");
   await expectVisibleText(page, "Pensioenfonds aangepast");
   await expectVisibleText(page, "Inkomen aangepast rooktest");
@@ -252,7 +255,7 @@ async function editIncomeRow(page) {
 }
 
 async function cancelExpenseEdit(page) {
-  await page.getByLabel("Regel bewerken: Test uitgave rooktest").click();
+  await page.getByLabel("Regel bewerken: Test uitgave rooktest met langere omschrijving").click();
   const editRow = page.locator('[data-testid^="edit-demo-9-vaste_kosten-"]');
   await expectEditRowsContained(page, "uitgaveregel bewerken");
   await editRow.locator('input[aria-label^="Omschrijving bewerken"]').fill("Niet bewaren rooktest");
@@ -288,6 +291,7 @@ async function auditResponsiveViewports(browser) {
   const viewports = [
     { name: "07-responsive-small-laptop.png", width: 760, height: 720, month: 9 },
     { name: "08-responsive-narrow.png", width: 390, height: 844, month: 9 },
+    { name: "11-responsive-360.png", width: 360, height: 740, month: 9 },
   ];
 
   for (const viewport of viewports) {
@@ -301,8 +305,10 @@ async function auditResponsiveViewports(browser) {
     await expectActiveMonthTabProminent(page, viewport.month);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
+    await expectLedgerBreathingRoom(page, `${viewport.width}x${viewport.height}`);
     if (viewport.width <= 390) {
-      await captureDraftNotePopup(page, viewport.month, "08-responsive-narrow-note-popup.png");
+      const notePopupScreenshot = viewport.width <= 360 ? "12-responsive-360-note-popup.png" : "08-responsive-narrow-note-popup.png";
+      await captureDraftNotePopup(page, viewport.month, notePopupScreenshot);
     }
     await expectNoPageHorizontalOverflow(page, `${viewport.width}x${viewport.height}`);
     await capturePageScreenshot(page, viewport.name);
@@ -966,6 +972,45 @@ async function expectCarryBalanceInIncomeGrid(page) {
   if (issue) throw new Error(`Overdrachtcontrole faalde: ${issue}`);
 }
 
+async function expectIconOnlyLockedRows(page) {
+  const issue = await page.evaluate(() => {
+    const lockedRows = Array.from(document.querySelectorAll(".locked-row"));
+    if (lockedRows.length === 0) return "Geen vaste-regel-slotjes gevonden.";
+
+    for (const row of lockedRows) {
+      if (!(row instanceof HTMLElement)) continue;
+      if ((row.textContent ?? "").trim()) return "Vaste regel toont nog tekst naast het slotje.";
+      if (!row.querySelector("svg")) return "Vaste regel mist het sloticoon.";
+      if (!row.getAttribute("aria-label")) return "Vaste regel mist een toegankelijke naam.";
+    }
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Vaste-regelcontrole faalde: ${issue}`);
+}
+
+async function expectQuietActionHeaders(page) {
+  const issue = await page.evaluate(() => {
+    for (const head of Array.from(document.querySelectorAll(".grid-head"))) {
+      if (!(head instanceof HTMLElement)) continue;
+      if (/Bewerk/i.test(head.textContent ?? "")) return "Ledgerkop toont nog 'Bewerk'.";
+
+      const actionHead = head.querySelector(".action-head");
+      if (!(actionHead instanceof HTMLElement)) return "Ledgerkop mist de actiecel.";
+      if ((actionHead.textContent ?? "").trim()) return "Actiekop moet visueel leeg blijven.";
+
+      const amountHead = head.querySelector(".amount-head");
+      if (!(amountHead instanceof HTMLElement)) return "Ledgerkop mist de bedragcel.";
+      if (getComputedStyle(amountHead).textAlign !== "right") return "Bedragkop is niet rechts uitgelijnd.";
+    }
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Ledgerkopcontrole faalde: ${issue}`);
+}
+
 async function expectExcelNumberAlignment(page) {
   const issue = await page.evaluate(() => {
     const selectors = [".entry-row strong", ".amount-field input", ".edit-amount input", ".subcategory-row strong", ".section-title span"];
@@ -983,6 +1028,49 @@ async function expectExcelNumberAlignment(page) {
   });
 
   if (issue) throw new Error(`Excel-uitlijning faalde: ${issue}`);
+}
+
+async function expectLedgerBreathingRoom(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 1;
+    const rows = Array.from(document.querySelectorAll(".month-card .entry-row, .month-card .subcategory-row, .month-card .grid-head")).filter((row) => {
+      if (!(row instanceof HTMLElement)) return false;
+      const rect = row.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+
+    return rows.flatMap((row, index) => {
+      if (!(row instanceof HTMLElement)) return [];
+      const card = row.closest(".month-card");
+      if (!(card instanceof HTMLElement)) return [];
+      const cardRect = card.getBoundingClientRect();
+      const rowIssues = [];
+
+      const firstTextCell = row.querySelector(".party-cell, .party-head, .description-head, :scope > span");
+      if (firstTextCell instanceof HTMLElement) {
+        const cellRect = firstTextCell.getBoundingClientRect();
+        if (cellRect.left < cardRect.left + 8 - tolerance) {
+          rowIssues.push(`Rij ${index + 1}: tekst staat te dicht tegen de linkerrand.`);
+        }
+        const paddingLeft = Number.parseFloat(getComputedStyle(firstTextCell).paddingLeft);
+        if (paddingLeft < 3) rowIssues.push(`Rij ${index + 1}: tekstcel heeft te weinig interne padding.`);
+      }
+
+      const actionCell = row.querySelector(".row-actions, .subcategory-add, .locked-row, .action-head");
+      if (actionCell instanceof HTMLElement) {
+        const actionRect = actionCell.getBoundingClientRect();
+        if (actionRect.right > cardRect.right - 7 + tolerance) {
+          rowIssues.push(`Rij ${index + 1}: actiekolom hangt te dicht tegen de rechterrand.`);
+        }
+      }
+
+      return rowIssues;
+    });
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Ledger-ademruimtecontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
 }
 
 async function expectRecentRowGlow(page, description) {

@@ -741,10 +741,10 @@
         </header>
 
         <div class="grid-head">
-          <span>Partij</span>
-          <span>Omschrijving</span>
-          <span>Bedrag</span>
-          <span>Bewerk</span>
+          <span class="party-head">Partij</span>
+          <span class="description-head">Omschrijving</span>
+          <span class="amount-head">Bedrag</span>
+          <span class="action-head" aria-label="Acties"></span>
         </div>
 
         {#each sections as section}
@@ -763,10 +763,10 @@
 
             {#if section === "inkomsten"}
               <div class="entry-row carry-entry" data-transfer-row="true">
-                <span>Overdracht</span>
-                <span>Resterend van vorige maand</span>
-                <strong>{formatDecimalCents(total?.startCents ?? 0)}</strong>
-                <span class="locked-row"><Lock size={14} aria-hidden="true" /> Vast</span>
+                <span class="party-cell">Overdracht</span>
+                <span class="description-text">Resterend van vorige maand</span>
+                <strong class="amount-cell">{formatDecimalCents(total?.startCents ?? 0)}</strong>
+                <span class="locked-row" aria-label="Vaste regel" title="Vaste regel" data-tooltip="Vaste regel"><Lock size={14} aria-hidden="true" /></span>
               </div>
             {/if}
 
@@ -800,7 +800,7 @@
                   onfocusin={() => activateMonthForInput(month.month)}
                 >
                   <input
-                    class="ledger-input"
+                    class="ledger-input party-input"
                     aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
                     bind:value={draft.party}
                     placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
@@ -808,10 +808,10 @@
                   />
 
                   <input
-                    class="ledger-input"
+                    class="ledger-input description-input"
                     aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
                     bind:value={draft.description}
-                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
+                    placeholder="Omschrijving"
                     onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
                   />
 
@@ -832,7 +832,7 @@
                     {/if}
                   </label>
 
-                  <span class="row-actions">
+                  <span class="row-actions actions-cell">
                     <button
                       class:has-note={Boolean(draft.comment.trim())}
                       class="note-row"
@@ -870,14 +870,14 @@
                       onfocusin={() => activateMonthForInput(month.month)}
                     >
                       <input
-                        class="ledger-input"
+                        class="ledger-input party-input"
                         aria-label={`Partij bewerken voor ${entry.description}`}
                         bind:value={editDraft.party}
                         onkeydown={(event) => maybeHandleEditKey(event, entry)}
                       />
                       <span class="description-cell">
                         <input
-                          class="ledger-input"
+                          class="ledger-input description-input"
                           aria-label={`Omschrijving bewerken voor ${entry.description}`}
                           bind:value={editDraft.description}
                           onkeydown={(event) => maybeHandleEditKey(event, entry)}
@@ -910,7 +910,7 @@
                           <small id={`edit-error-${entry.id}`} class="field-error">{editDraft.amountError}</small>
                         {/if}
                       </label>
-                      <span class="row-actions">
+                      <span class="row-actions actions-cell">
                         <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
                         <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                       </span>
@@ -929,13 +929,15 @@
                     {/if}
                   {:else}
                     <div class:recent-row={recentEntryId === entry.id} class="entry-row" data-entry-row={entry.id}>
-                      <span title={entry.party || "-"}>{entry.party || "-"}</span>
-                      <span title={entry.description}>{entry.description}</span>
-                      <strong>{formatDecimalCents(entry.amountCents)}</strong>
-                      <span class="row-actions">
+                      <span class="party-cell" title={entry.party || "-"}>{entry.party || "-"}</span>
+                      <span class:has-note={Boolean(entry.comment)} class="description-text" title={entry.description}>
+                        <span>{entry.description}</span>
                         {#if entry.comment}
-                          <button class="note-row has-note" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={14} /></button>
+                          <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
                         {/if}
+                      </span>
+                      <strong class="amount-cell">{formatDecimalCents(entry.amountCents)}</strong>
+                      <span class="row-actions actions-cell">
                         <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                       </span>
                     </div>
@@ -954,14 +956,14 @@
                   onfocusin={() => activateMonthForInput(month.month)}
                 >
                   <input
-                    class="ledger-input"
+                    class="ledger-input party-input"
                     aria-label={`Partij bewerken voor ${entry.description}`}
                     bind:value={editDraft.party}
                     onkeydown={(event) => maybeHandleEditKey(event, entry)}
                   />
                   <span class="description-cell">
                     <input
-                      class="ledger-input"
+                      class="ledger-input description-input"
                       aria-label={`Omschrijving bewerken voor ${entry.description}`}
                       bind:value={editDraft.description}
                       onkeydown={(event) => maybeHandleEditKey(event, entry)}
@@ -994,7 +996,7 @@
                       <small id={`edit-error-${entry.id}`} class="field-error">{editDraft.amountError}</small>
                     {/if}
                   </label>
-                  <span class="row-actions">
+                  <span class="row-actions actions-cell">
                     <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
                     <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                   </span>
@@ -1013,13 +1015,15 @@
                 {/if}
               {:else}
                 <div class:recent-row={recentEntryId === entry.id} class="entry-row" data-entry-row={entry.id}>
-                  <span title={entry.party || "-"}>{entry.party || "-"}</span>
-                  <span title={entry.description}>{entry.description}</span>
-                  <strong>{formatDecimalCents(entry.amountCents)}</strong>
-                  <span class="row-actions">
+                  <span class="party-cell" title={entry.party || "-"}>{entry.party || "-"}</span>
+                  <span class:has-note={Boolean(entry.comment)} class="description-text" title={entry.description}>
+                    <span>{entry.description}</span>
                     {#if entry.comment}
-                      <button class="note-row has-note" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={14} /></button>
+                      <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
                     {/if}
+                  </span>
+                  <strong class="amount-cell">{formatDecimalCents(entry.amountCents)}</strong>
+                  <span class="row-actions actions-cell">
                     <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                   </span>
                 </div>
