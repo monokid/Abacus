@@ -54,6 +54,7 @@ try {
   await expectNoMonthNumberLabels(page);
   await expectCategoryInputs(page);
   await expectExcelNumberAlignment(page);
+  await expectUnifiedLedgerGrid(page, "eerste laadbeurt");
   await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectIncomePartyInputs(page);
   await focusInactiveMonthIncomePartyInput(page, 2);
@@ -104,10 +105,12 @@ try {
     party: "Testwinkel",
     description: "Test uitgave rooktest",
     amount: "12,34",
+    note: "Uitgebreide melding rooktest",
   });
   await expectRecentRowGlow(page, "Test uitgave rooktest");
   await expectVisibleText(page, "Test uitgave rooktest");
   await expectVisibleText(page, "12,34");
+  await expectNotePopupFlow(page, "Test uitgave rooktest", "Uitgebreide melding rooktest");
 
   await fillExpense(page, {
     party: "Foute winkel",
@@ -141,6 +144,8 @@ try {
 
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Test uitgave rooktest");
+  await navigateToMonth(page, 9);
+  await expectNotePopupFlow(page, "Test uitgave rooktest", "Uitgebreide melding rooktest");
   await expectHiddenText(page, "Klik weg rooktest");
   await expectVisibleText(page, "Pensioenfonds aangepast");
   await expectVisibleText(page, "Inkomen aangepast rooktest");
@@ -158,13 +163,23 @@ try {
   if (devServer) devServer.kill();
 }
 
-async function fillExpense(page, { party, description, amount }) {
+async function fillExpense(page, { party, description, amount, note }) {
   await openDraft(page, 9, "vaste_kosten", "sub-vast-wonen", "Wonen");
   const draft = page.locator('[data-testid="draft-9-vaste_kosten-sub-vast-wonen"]');
   await draft.locator('input[aria-label^="Partij"]').fill(party);
   await draft.locator('input[aria-label^="Omschrijving"]').fill(description);
   const amountInput = draft.locator('input[aria-label^="Bedrag"]');
   await amountInput.fill(amount);
+  if (note) {
+    await draft.getByLabel("Uitgebreide melding voor Wonen").click();
+    const popup = page.locator('[data-testid="note-popup"]');
+    await popup.waitFor({ state: "visible", timeout: 5_000 });
+    await popup.getByLabel("Uitgebreide melding").fill(note);
+    await captureScreenshot(page, "05-note-popup.png");
+    await popup.getByLabel("Melding annuleren").click();
+    await expectVisibleText(page, "Deze melding is nog niet bewaard.");
+    await popup.getByLabel("Melding bewaren").click();
+  }
   await amountInput.press("Enter");
 }
 
@@ -257,6 +272,18 @@ async function deleteVariableRow(page) {
   await page.getByLabel("Verwijderen bevestigen").click();
 }
 
+async function expectNotePopupFlow(page, description, expectedNote) {
+  await page.getByLabel(`Melding bekijken: ${description}`).click();
+  const popup = page.locator('[data-testid="note-popup"]');
+  await popup.waitFor({ state: "visible", timeout: 5_000 });
+  const noteValue = await popup.getByLabel("Uitgebreide melding").inputValue();
+  if (noteValue !== expectedNote) {
+    throw new Error(`Melding-popup bevat verkeerde tekst: '${noteValue}'.`);
+  }
+  await popup.getByLabel("Melding annuleren").click();
+  await popup.waitFor({ state: "hidden", timeout: 5_000 });
+}
+
 async function auditResponsiveViewports(browser) {
   const viewports = [
     { name: "07-responsive-small-laptop.png", width: 760, height: 720, month: 9 },
@@ -274,6 +301,9 @@ async function auditResponsiveViewports(browser) {
     await expectActiveMonthTabProminent(page, viewport.month);
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
     await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
+    if (viewport.width <= 390) {
+      await captureDraftNotePopup(page, viewport.month, "08-responsive-narrow-note-popup.png");
+    }
     await expectNoPageHorizontalOverflow(page, `${viewport.width}x${viewport.height}`);
     await capturePageScreenshot(page, viewport.name);
     await page.close();
@@ -292,8 +322,20 @@ async function auditDarkMode(browser) {
   await expectMonthHeaderLayout(page, "donkere modus");
   await expectTooltips(page);
   await expectStatusBarDoesNotOverlapCards(page, "donkere modus");
+  await captureDraftNotePopup(page, 9, "10-dark-mode-note-popup.png");
   await capturePageScreenshot(page, "09-dark-mode.png");
   await page.close();
+}
+
+async function captureDraftNotePopup(page, monthNumber, filename) {
+  await openDraft(page, monthNumber, "vaste_kosten", "sub-vast-wonen", "Wonen");
+  const draft = page.locator(`[data-testid="draft-${monthNumber}-vaste_kosten-sub-vast-wonen"]`);
+  await draft.getByLabel("Uitgebreide melding voor Wonen").click();
+  const popup = page.locator('[data-testid="note-popup"]');
+  await popup.waitFor({ state: "visible", timeout: 5_000 });
+  await capturePageScreenshot(page, filename);
+  await popup.getByLabel("Melding annuleren").click();
+  await popup.waitFor({ state: "hidden", timeout: 5_000 });
 }
 
 async function openDraft(page, monthNumber, section, subcategoryId, label) {
@@ -313,6 +355,8 @@ async function expectIncomeDraftTabOrder(page, monthNumber) {
   await expectFocusedControl(page, draftSelector, 'input[aria-label^="Omschrijving"]', "tabvolgorde naar Omschrijving");
   await page.keyboard.press("Tab");
   await expectFocusedControl(page, draftSelector, 'input[aria-label^="Bedrag"]', "tabvolgorde naar Bedrag");
+  await page.keyboard.press("Tab");
+  await expectFocusedControl(page, draftSelector, "button.note-row", "tabvolgorde naar melding");
   await page.keyboard.press("Tab");
   await expectFocusedControl(page, draftSelector, "button.add-entry", "tabvolgorde naar plusknop");
 }
@@ -351,16 +395,30 @@ async function expectDraftPanelsContained(page, label) {
       const panelIssues = [];
 
       if (panel.scrollWidth > panel.clientWidth + tolerance) {
-        panelIssues.push(`Paneel ${index + 1}: inhoud is breder dan het paneel.`);
+        panelIssues.push(`Invoerrij ${index + 1}: inhoud is breder dan de rij.`);
       }
       if (panelRect.left < cardRect.left - tolerance || panelRect.right > cardRect.right + tolerance) {
-        panelIssues.push(`Paneel ${index + 1}: paneel valt buiten de maandkaart.`);
+        panelIssues.push(`Invoerrij ${index + 1}: rij valt buiten de maandkaart.`);
+      }
+      if (!panel.classList.contains("entry-row") || !panel.classList.contains("new-entry-row")) {
+        panelIssues.push(`Invoerrij ${index + 1}: gebruikt niet dezelfde rijbasis als de ledger.`);
+      }
+
+      const style = getComputedStyle(panel);
+      if (Number.parseFloat(style.paddingLeft) > 1 || Number.parseFloat(style.paddingRight) > 1) {
+        panelIssues.push(`Invoerrij ${index + 1}: heeft nog paneelachtige zijpadding.`);
+      }
+      if (Number.parseFloat(style.borderTopWidth) > 0 || Number.parseFloat(style.borderLeftWidth) > 0 || Number.parseFloat(style.borderRightWidth) > 0) {
+        panelIssues.push(`Invoerrij ${index + 1}: heeft nog een paneelkader.`);
+      }
+      if (Number.parseFloat(style.borderTopLeftRadius) > 1) {
+        panelIssues.push(`Invoerrij ${index + 1}: heeft nog paneelafronding.`);
       }
 
       for (const child of Array.from(panel.children)) {
         const childRect = child.getBoundingClientRect();
         if (childRect.left < panelRect.left - tolerance || childRect.right > panelRect.right + tolerance) {
-          panelIssues.push(`Paneel ${index + 1}: veld valt buiten het paneel.`);
+          panelIssues.push(`Invoerrij ${index + 1}: veld valt buiten de rij.`);
         }
       }
 
@@ -370,6 +428,76 @@ async function expectDraftPanelsContained(page, label) {
 
   if (issues.length > 0) {
     throw new Error(`Visuele invoercontrole faalde (${label}):\n${issues.join("\n")}`);
+  }
+
+  await expectUnifiedLedgerGrid(page, label);
+}
+
+async function expectUnifiedLedgerGrid(page, label) {
+  const issues = await page.evaluate(() => {
+    const tolerance = 2;
+    const visibleCards = Array.from(document.querySelectorAll(".month-card")).filter((card) => {
+      if (!(card instanceof HTMLElement)) return false;
+      const rect = card.getBoundingClientRect();
+      return rect.right > 0 && rect.left < window.innerWidth;
+    });
+
+    return visibleCards.flatMap((card, cardIndex) => {
+      if (!(card instanceof HTMLElement)) return [];
+      const head = card.querySelector(".grid-head");
+      if (!(head instanceof HTMLElement)) return [`Kaart ${cardIndex + 1}: ledgerkop ontbreekt.`];
+
+      const headCells = Array.from(head.children).filter((child) => child instanceof HTMLElement);
+      if (headCells.length < 4) return [`Kaart ${cardIndex + 1}: ledgerkop heeft te weinig kolommen.`];
+
+      const amountRight = headCells[2].getBoundingClientRect().right;
+      const actionRight = headCells[3].getBoundingClientRect().right;
+      const rows = Array.from(card.querySelectorAll(".section-title, .subcategory-row, .entry-row"));
+      const cardIssues = [];
+
+      for (const row of rows) {
+        if (!(row instanceof HTMLElement)) continue;
+        const rowRect = row.getBoundingClientRect();
+        if (rowRect.width === 0 || rowRect.height === 0) continue;
+
+        const amountElement = amountElementFor(row);
+        if (amountElement instanceof HTMLElement) {
+          const delta = Math.abs(amountElement.getBoundingClientRect().right - amountRight);
+          if (delta > tolerance) {
+            cardIssues.push(`${describeRow(row)}: geldkolom wijkt ${Math.round(delta)}px af.`);
+          }
+        }
+
+        const actionElement = row.querySelector(".row-actions") ?? row.querySelector(".subcategory-add") ?? row.querySelector(".locked-row");
+        if (actionElement instanceof HTMLElement) {
+          const delta = Math.abs(actionElement.getBoundingClientRect().right - actionRight);
+          if (delta > tolerance) {
+            cardIssues.push(`${describeRow(row)}: actiekolom wijkt ${Math.round(delta)}px af.`);
+          }
+        }
+      }
+
+      return cardIssues;
+    });
+
+    function describeRow(row) {
+      if (row.classList.contains("new-entry-row")) return "Nieuwe invoerrij";
+      if (row.classList.contains("edit-row")) return "Bewerkrij";
+      if (row.classList.contains("carry-entry")) return "Overdrachtsrij";
+      if (row.classList.contains("section-title")) return `Sectietitel '${row.textContent?.trim() ?? ""}'`;
+      if (row.classList.contains("subcategory-row")) return `Categorierij '${row.textContent?.trim() ?? ""}'`;
+      return `Boekingsrij '${row.textContent?.trim() ?? ""}'`;
+    }
+
+    function amountElementFor(row) {
+      if (row.classList.contains("section-title")) return row.querySelector(":scope > span");
+      if (row.classList.contains("subcategory-row")) return row.querySelector(":scope > strong");
+      return row.querySelector(".amount-field input") ?? row.querySelector(".edit-amount input") ?? row.querySelector(":scope > strong");
+    }
+  });
+
+  if (issues.length > 0) {
+    throw new Error(`Ledger-uitlijning faalde (${label}):\n${issues.join("\n")}`);
   }
 }
 

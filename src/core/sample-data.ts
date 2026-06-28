@@ -137,7 +137,7 @@ function entryFromRule(rule: RecurringRule, date: string, order: number): Entry 
     party: rule.party,
     description: expandTemplate(rule.description, date),
     amountCents: rule.amountCents,
-    comment: "Aangemaakt uit demoregel.",
+    comment: "",
     createdAt: Date.UTC(year, month - 1, order),
   };
 }

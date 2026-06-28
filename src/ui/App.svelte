@@ -50,6 +50,7 @@
     description: string;
     amountText: string;
     amountError: string;
+    comment: string;
   }
 
   interface MonthView {
@@ -61,6 +62,10 @@
   }
 
   type AppMode = "demo" | "production";
+  type NoteTarget =
+    | { kind: "draft"; monthNumber: number; section: Section; subcategoryId: string; title: string }
+    | { kind: "edit"; entryId: string; title: string }
+    | { kind: "entry"; entryId: string; title: string };
 
   const demoStorageKey = "abacus.demo.2026.v1";
   const productionStorageKey = "abacus.book.v1";
@@ -81,6 +86,10 @@
   let editingEntryId = $state<string | null>(null);
   let deleteConfirmEntryId = $state<string | null>(null);
   let editDraft = $state<DraftEntry>(emptyDraft());
+  let notePopup = $state<NoteTarget | null>(null);
+  let noteText = $state("");
+  let noteInitialText = $state("");
+  let noteCancelWarning = $state(false);
   let storageReady = $state(false);
   let saveStatus = $state("Voorbeeldgegevens");
   let currentClock = $state(formatClock(new Date()));
@@ -290,7 +299,7 @@
   }
 
   function hasDraftContent(draft: DraftEntry): boolean {
-    return Boolean(draft.party.trim() || draft.description.trim() || draft.amountText.trim() || draft.amountError);
+    return Boolean(draft.party.trim() || draft.description.trim() || draft.amountText.trim() || draft.amountError || draft.comment.trim());
   }
 
   function isDraftVisible(key: string, draft: DraftEntry): boolean {
@@ -318,6 +327,7 @@
     const party = draft.party.trim();
     const description = draft.description.trim();
     const amountText = draft.amountText.trim();
+    const comment = draft.comment.trim();
     if (!party && !description && !amountText) return;
 
     if (!isValidAmountText(amountText)) {
@@ -334,7 +344,7 @@
       party,
       description: description || "Nieuwe regel",
       amountCents: amountText ? parseMoneyToCents(amountText) : null,
-      comment: "",
+      comment,
       createdAt: Date.now(),
     });
     markRecentEntry(newEntryId);
@@ -344,6 +354,7 @@
       description: "",
       amountText: "",
       amountError: "",
+      comment: "",
     };
     if (expandedDraftKey === key) expandedDraftKey = null;
     activeMonth = month.month;
@@ -366,6 +377,7 @@
       description: entry.description,
       amountText: formatDecimalCents(entry.amountCents),
       amountError: "",
+      comment: entry.comment,
     };
 
     requestAnimationFrame(() => {
@@ -388,12 +400,15 @@
     entry.party = editDraft.party.trim();
     entry.description = editDraft.description.trim() || "Nieuwe regel";
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
+    entry.comment = editDraft.comment.trim();
     editingEntryId = null;
     deleteConfirmEntryId = null;
+    if (notePopup?.kind === "edit" && notePopup.entryId === entry.id) closeNotePopup();
     editDraft = emptyDraft();
   }
 
   function cancelEdit(): void {
+    if (notePopup?.kind === "edit" && notePopup.entryId === editingEntryId) closeNotePopup();
     editingEntryId = null;
     deleteConfirmEntryId = null;
     editDraft = emptyDraft();
@@ -412,6 +427,7 @@
     if (index < 0) return;
 
     month.entries.splice(index, 1);
+    if ((notePopup?.kind === "edit" || notePopup?.kind === "entry") && notePopup.entryId === entry.id) closeNotePopup();
     cancelEdit();
   }
 
@@ -423,6 +439,10 @@
 
     if (event.key === "Escape") {
       event.preventDefault();
+      if (notePopup?.kind === "draft" && notePopup.monthNumber === month.month && notePopup.section === section && notePopup.subcategoryId === subcategoryId) {
+        closeNotePopup();
+        return;
+      }
       resetDraft(month.month, section, subcategoryId);
     }
   }
@@ -435,6 +455,10 @@
 
     if (event.key === "Escape") {
       event.preventDefault();
+      if (notePopup?.kind === "edit" && notePopup.entryId === entry.id) {
+        closeNotePopup();
+        return;
+      }
       cancelEdit();
     }
   }
@@ -443,6 +467,7 @@
     const currentTarget = event.currentTarget;
     const relatedTarget = event.relatedTarget;
     if (currentTarget instanceof HTMLElement && relatedTarget instanceof Node && currentTarget.contains(relatedTarget)) return;
+    if (notePopup?.kind === "draft" && notePopup.monthNumber === month.month && notePopup.section === section && notePopup.subcategoryId === subcategoryId) return;
     commitDraft(month, section, subcategoryId);
   }
 
@@ -489,7 +514,102 @@
       description: "",
       amountText: "",
       amountError: "",
+      comment: "",
     };
+  }
+
+  function findEntry(entryId: string): Entry | null {
+    for (const month of selectedYear.months) {
+      const entry = month.entries.find((item) => item.id === entryId);
+      if (entry) return entry;
+    }
+
+    return null;
+  }
+
+  function focusNotePopup(): void {
+    requestAnimationFrame(() => {
+      const textarea = document.querySelector('[data-testid="note-popup"] textarea');
+      if (textarea instanceof HTMLTextAreaElement) textarea.focus();
+    });
+  }
+
+  function openDraftNote(monthNumber: number, section: Section, subcategory: Subcategory): void {
+    const draft = draftFor(monthNumber, section, subcategory.id);
+    noteText = draft.comment;
+    noteInitialText = draft.comment;
+    noteCancelWarning = false;
+    notePopup = {
+      kind: "draft",
+      monthNumber,
+      section,
+      subcategoryId: subcategory.id,
+      title: `${subcategory.name} - ${monthName(monthNumber)}`,
+    };
+    focusNotePopup();
+  }
+
+  function openEditNote(entry: Entry): void {
+    noteText = editDraft.comment;
+    noteInitialText = editDraft.comment;
+    noteCancelWarning = false;
+    notePopup = { kind: "edit", entryId: entry.id, title: entry.description };
+    focusNotePopup();
+  }
+
+  function openEntryNote(entry: Entry): void {
+    noteText = entry.comment;
+    noteInitialText = entry.comment;
+    noteCancelWarning = false;
+    notePopup = { kind: "entry", entryId: entry.id, title: entry.description };
+    focusNotePopup();
+  }
+
+  function saveNotePopup(): void {
+    const comment = noteText.trim();
+
+    if (notePopup?.kind === "draft") {
+      const key = draftKey(notePopup.monthNumber, notePopup.section, notePopup.subcategoryId);
+      drafts[key] = {
+        ...(drafts[key] ?? emptyDraft()),
+        comment,
+      };
+    } else if (notePopup?.kind === "edit") {
+      editDraft.comment = comment;
+    } else if (notePopup?.kind === "entry") {
+      const entry = findEntry(notePopup.entryId);
+      if (entry) entry.comment = comment;
+    }
+
+    closeNotePopup();
+  }
+
+  function closeNotePopup(): void {
+    notePopup = null;
+    noteText = "";
+    noteInitialText = "";
+    noteCancelWarning = false;
+  }
+
+  function requestCloseNotePopup(): void {
+    if (noteText !== noteInitialText) {
+      noteCancelWarning = true;
+      return;
+    }
+
+    closeNotePopup();
+  }
+
+  function maybeHandleNoteKey(event: KeyboardEvent): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      requestCloseNotePopup();
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      saveNotePopup();
+    }
   }
 
   function formatClock(date: Date): string {
@@ -673,34 +793,31 @@
               {#if isDraftVisible(key, draft)}
                 <div
                   class:has-error={Boolean(draft.amountError)}
-                  class="new-entry-panel"
+                  class:has-note={Boolean(draft.comment.trim())}
+                  class="entry-row new-entry-row new-entry-panel"
                   data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
                   onfocusout={(event) => maybeCommitOnPanelBlur(event, month, section, subcategory.id)}
                   onfocusin={() => activateMonthForInput(month.month)}
                 >
-                  <label class="field">
-                    <span>Partij</span>
-                    <input
-                      aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
-                      bind:value={draft.party}
-                      placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
-                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                    />
-                  </label>
+                  <input
+                    class="ledger-input"
+                    aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
+                    bind:value={draft.party}
+                    placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                  />
 
-                  <label class="field label-field">
-                    <span>Omschrijving</span>
-                    <input
-                      aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
-                      bind:value={draft.description}
-                      placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
-                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                    />
-                  </label>
+                  <input
+                    class="ledger-input"
+                    aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
+                    bind:value={draft.description}
+                    placeholder={section === "inkomsten" ? "Nieuwe inkomsten" : "Nieuwe uitgave"}
+                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                  />
 
                   <label class="field amount-field">
-                    <span>Bedrag</span>
                     <input
+                      class="ledger-input"
                       aria-describedby={draft.amountError ? `amount-error-${month.month}-${section}-${subcategory.id}` : undefined}
                       aria-invalid={Boolean(draft.amountError)}
                       aria-label={`Bedrag voor ${subcategory.name} in ${monthName(month.month)}`}
@@ -715,14 +832,30 @@
                     {/if}
                   </label>
 
-                  <button
-                    class="add-entry"
-                    type="button"
-                    aria-label={`Nieuwe regel toevoegen aan ${subcategory.name}`}
-                    onclick={() => commitDraft(month, section, subcategory.id)}
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <span class="row-actions">
+                    <button
+                      class:has-note={Boolean(draft.comment.trim())}
+                      class="note-row"
+                      type="button"
+                      aria-label={`Uitgebreide melding voor ${subcategory.name}`}
+                      title={`Uitgebreide melding voor ${subcategory.name}`}
+                      data-tooltip="Uitgebreide melding"
+                      onpointerdown={(event) => event.preventDefault()}
+                      onclick={() => openDraftNote(month.month, section, subcategory)}
+                    >
+                      <MessageCircle size={14} />
+                    </button>
+                    <button
+                      class="add-entry"
+                      type="button"
+                      aria-label={`Nieuwe regel toevoegen aan ${subcategory.name}`}
+                      title={`Nieuwe regel toevoegen aan ${subcategory.name}`}
+                      data-tooltip="Regel toevoegen"
+                      onclick={() => commitDraft(month, section, subcategory.id)}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </span>
                 </div>
               {/if}
 
@@ -737,17 +870,34 @@
                       onfocusin={() => activateMonthForInput(month.month)}
                     >
                       <input
+                        class="ledger-input"
                         aria-label={`Partij bewerken voor ${entry.description}`}
                         bind:value={editDraft.party}
                         onkeydown={(event) => maybeHandleEditKey(event, entry)}
                       />
-                      <input
-                        aria-label={`Omschrijving bewerken voor ${entry.description}`}
-                        bind:value={editDraft.description}
-                        onkeydown={(event) => maybeHandleEditKey(event, entry)}
-                      />
+                      <span class="description-cell">
+                        <input
+                          class="ledger-input"
+                          aria-label={`Omschrijving bewerken voor ${entry.description}`}
+                          bind:value={editDraft.description}
+                          onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                        />
+                        <button
+                          class:has-note={Boolean(editDraft.comment.trim())}
+                          class="note-row"
+                          type="button"
+                          aria-label={`Uitgebreide melding bewerken voor ${entry.description}`}
+                          title="Uitgebreide melding"
+                          data-tooltip="Uitgebreide melding"
+                          onpointerdown={(event) => event.preventDefault()}
+                          onclick={() => openEditNote(entry)}
+                        >
+                          <MessageCircle size={14} />
+                        </button>
+                      </span>
                       <label class="edit-amount">
                         <input
+                          class="ledger-input"
                           aria-describedby={editDraft.amountError ? `edit-error-${entry.id}` : undefined}
                           aria-invalid={Boolean(editDraft.amountError)}
                           aria-label={`Bedrag bewerken voor ${entry.description}`}
@@ -783,6 +933,9 @@
                       <span title={entry.description}>{entry.description}</span>
                       <strong>{formatDecimalCents(entry.amountCents)}</strong>
                       <span class="row-actions">
+                        {#if entry.comment}
+                          <button class="note-row has-note" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={14} /></button>
+                        {/if}
                         <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                       </span>
                     </div>
@@ -801,17 +954,34 @@
                   onfocusin={() => activateMonthForInput(month.month)}
                 >
                   <input
+                    class="ledger-input"
                     aria-label={`Partij bewerken voor ${entry.description}`}
                     bind:value={editDraft.party}
                     onkeydown={(event) => maybeHandleEditKey(event, entry)}
                   />
-                  <input
-                    aria-label={`Omschrijving bewerken voor ${entry.description}`}
-                    bind:value={editDraft.description}
-                    onkeydown={(event) => maybeHandleEditKey(event, entry)}
-                  />
+                  <span class="description-cell">
+                    <input
+                      class="ledger-input"
+                      aria-label={`Omschrijving bewerken voor ${entry.description}`}
+                      bind:value={editDraft.description}
+                      onkeydown={(event) => maybeHandleEditKey(event, entry)}
+                    />
+                    <button
+                      class:has-note={Boolean(editDraft.comment.trim())}
+                      class="note-row"
+                      type="button"
+                      aria-label={`Uitgebreide melding bewerken voor ${entry.description}`}
+                      title="Uitgebreide melding"
+                      data-tooltip="Uitgebreide melding"
+                      onpointerdown={(event) => event.preventDefault()}
+                      onclick={() => openEditNote(entry)}
+                    >
+                      <MessageCircle size={14} />
+                    </button>
+                  </span>
                   <label class="edit-amount">
                     <input
+                      class="ledger-input"
                       aria-describedby={editDraft.amountError ? `edit-error-${entry.id}` : undefined}
                       aria-invalid={Boolean(editDraft.amountError)}
                       aria-label={`Bedrag bewerken voor ${entry.description}`}
@@ -847,6 +1017,9 @@
                   <span title={entry.description}>{entry.description}</span>
                   <strong>{formatDecimalCents(entry.amountCents)}</strong>
                   <span class="row-actions">
+                    {#if entry.comment}
+                      <button class="note-row has-note" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={14} /></button>
+                    {/if}
                     <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                   </span>
                 </div>
@@ -868,11 +1041,43 @@
       </div>
     {/each}
     <div class="board-spacer" aria-hidden="true"></div>
-    <button class="year-loop-card" type="button" onclick={() => selectMonth(1)}>
+    <button class="year-loop-card" type="button" title="Terug naar begin" data-tooltip="Terug naar begin" onclick={() => selectMonth(1)}>
       <span>Januari</span>
       <strong>Terug naar begin</strong>
     </button>
   </section>
+
+  {#if notePopup}
+    <div class="note-overlay" role="presentation">
+      <div class="note-popup" role="dialog" aria-modal="true" aria-labelledby="note-popup-title" data-testid="note-popup">
+        <header>
+          <MessageCircle size={18} aria-hidden="true" />
+          <div>
+            <h2 id="note-popup-title">Uitgebreide melding</h2>
+            <p>{notePopup.title}</p>
+          </div>
+        </header>
+        <textarea
+          aria-label="Uitgebreide melding"
+          bind:value={noteText}
+          placeholder="Voeg hier extra uitleg, context of een geheugensteun toe."
+          oninput={() => (noteCancelWarning = false)}
+          onkeydown={maybeHandleNoteKey}
+        ></textarea>
+        {#if noteCancelWarning}
+          <p class="note-warning" role="alert">Deze melding is nog niet bewaard.</p>
+        {/if}
+        <footer>
+          {#if noteCancelWarning}
+            <button class="danger-note" type="button" aria-label="Melding sluiten zonder bewaren" title="Melding sluiten zonder bewaren" data-tooltip="Sluiten zonder bewaren" onclick={closeNotePopup}>Toch sluiten</button>
+          {:else}
+            <button type="button" aria-label="Melding annuleren" title="Melding annuleren" data-tooltip="Melding annuleren" onclick={requestCloseNotePopup}>Annuleren</button>
+          {/if}
+          <button class="save-note" type="button" aria-label="Melding bewaren" title="Melding bewaren" data-tooltip="Melding bewaren" onclick={saveNotePopup}>Bewaren</button>
+        </footer>
+      </div>
+    </div>
+  {/if}
 
   <footer class="status-bar">
     <span>{appMode === "demo" ? "Leermodus" : "Productie"} - {saveStatus}</span>
