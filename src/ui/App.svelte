@@ -7,18 +7,18 @@
     Check,
     CheckCircle2,
     Clock,
+    Coins,
     Download,
-    HandCoins,
     History,
     Lock,
     MessageCircle,
     Moon,
     Pencil,
     Plus,
-    ReceiptEuro,
     RotateCcw,
     Settings,
     Shield,
+    ShieldCheck,
     ShoppingBasket,
     Sun,
     Trash2,
@@ -249,7 +249,7 @@
     const itemRect = item.getBoundingClientRect();
     rail.scrollTo({
       left: rail.scrollLeft + itemRect.left - railRect.left - (rail.clientWidth - item.clientWidth) / 2,
-      behavior: "smooth",
+      behavior: "instant",
     });
   }
 
@@ -774,11 +774,11 @@
             <section class:expense-section={section !== "inkomsten"} class:income-section={section === "inkomsten"} class="budget-section" aria-label={SECTION_LABELS[section]}>
             <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="section-title">
               {#if section === "inkomsten"}
-                <HandCoins size={16} />
+                <Coins size={15} />
               {:else if section === "vaste_kosten"}
-                <ReceiptEuro size={16} />
+                <ShieldCheck size={15} />
               {:else}
-                <ShoppingBasket size={16} />
+                <ShoppingBasket size={15} />
               {/if}
               <strong>{SECTION_LABELS[section]}</strong>
               <span>{formatMoneyCents(sectionTotal(month, section))}</span>
