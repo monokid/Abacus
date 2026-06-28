@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { chromium } from "playwright-core";
 
@@ -918,8 +918,19 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await page.getByRole("button", { name: "Veiligheid" }).click();
   await expectVisibleText(page, "Gegevenscontrole");
   await expectVisibleText(page, "Controlelijst");
+  await expectVisibleText(page, "Back-up maken");
+  await expectVisibleText(page, "Back-up terugzetten");
+  const restorePath = `${screenshotDir}/restore-test.json`;
+  const backupPayload = await page.evaluate(({ demoKey }) => {
+    const book = JSON.parse(localStorage.getItem(demoKey) ?? "{}");
+    return JSON.stringify({ app: "Abacus", exportedAt: new Date().toISOString(), mode: "demo", book }, null, 2);
+  }, { demoKey: demoStorageKey });
+  await writeFile(restorePath, backupPayload, "utf8");
+  await page.locator(".hidden-file-input").setInputFiles(restorePath);
+  await expectVisibleText(page, "teruggezet in leermodus");
   await page.getByRole("button", { name: "Historiek" }).click();
   await expectVisibleText(page, "Recente boekingen");
+  await expectVisibleText(page, "Wijzigingen vanaf nu");
   await expectVisibleText(page, "Vaste regel");
   await page.getByRole("button", { name: "Jaar" }).click();
   await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
@@ -1255,6 +1266,11 @@ async function expectRecurringRuleSettings(page) {
   await navigateToMonth(page, 7);
   await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
   await expectMonthCardVisibleText(page, 7, "44,00");
+
+  await page.getByRole("button", { name: "Historiek" }).click();
+  await expectVisibleText(page, "Vaste regel toegevoegd");
+  await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
+  await page.getByRole("button", { name: "Jaar" }).click();
 }
 
 async function expectTooltips(page) {

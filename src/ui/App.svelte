@@ -11,6 +11,7 @@
     Clock,
     Coins,
     Download,
+    FileCheck,
     History,
     Lock,
     MessageCircle,
@@ -24,6 +25,7 @@
     ShoppingBasket,
     Sun,
     Trash2,
+    Upload,
     X,
   } from "@lucide/svelte";
   import { yearTotals } from "../core/calc";
@@ -95,6 +97,21 @@
     isRecurring: boolean;
   }
 
+  interface HistoryEvent {
+    id: string;
+    timestamp: number;
+    title: string;
+    detail: string;
+    mode: AppMode;
+  }
+
+  interface BackupFile {
+    app?: string;
+    exportedAt?: string;
+    mode?: AppMode;
+    book?: Book;
+  }
+
   type AppMode = "demo" | "production";
   type AppView = "year" | "edit" | "settings" | "safety" | "history";
   type SettingsTab = "data" | "categories" | "rules";
@@ -106,6 +123,7 @@
   const demoStorageKey = "abacus.demo.2026.v2";
   const productionStorageKey = "abacus.book.v1";
   const modeStorageKey = "abacus.mode.v1";
+  const historyStorageKey = "abacus.history.v1";
   const viewLabels: Record<AppView, string> = {
     year: "Jaar",
     edit: "Bewerken",
@@ -158,8 +176,11 @@
   });
   let subcategoryMessage = $state("");
   let recurringRuleMessage = $state("");
+  let safetyMessage = $state("");
   let newRuleDraft = $state<RecurringRuleDraft>(emptyRecurringRuleDraft("vaste_kosten"));
   let editingRuleId = $state<string | null>(null);
+  let historyEvents = $state<HistoryEvent[]>([]);
+  let restoreInput: HTMLInputElement | null = $state(null);
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -171,6 +192,7 @@
   const currentMonthInSelectedYear = $derived(selectedYear.year === today.getFullYear() ? today.getMonth() + 1 : null);
   const validationIssues = $derived(validateBook(book));
   const recentEntries = $derived.by(() => recentEntriesForYear(8));
+  const visibleHistoryEvents = $derived(historyEvents.slice(0, 12));
   const months: MonthView[] = [
     { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)", sun: "#d8bf78", sunSoft: "#efe3bf" },
     { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)", sun: "#dfc069", sunSoft: "#f1e1b0" },
@@ -189,6 +211,7 @@
   onMount(() => {
     const storedMode = localStorage.getItem(modeStorageKey);
     appMode = storedMode === "production" ? "production" : "demo";
+    historyEvents = loadHistoryEvents();
     loadBookForMode(appMode);
     activeMonth = currentMonthInSelectedYear ?? 1;
     currentClock = formatClock(new Date());
@@ -238,6 +261,136 @@
     expandedDraftKey = null;
   }
 
+  function loadHistoryEvents(): HistoryEvent[] {
+    const savedHistory = localStorage.getItem(historyStorageKey);
+    if (!savedHistory) return [];
+
+    try {
+      const parsedHistory = JSON.parse(savedHistory) as HistoryEvent[];
+      if (!Array.isArray(parsedHistory)) return [];
+      return parsedHistory
+        .filter((event) => event && typeof event.title === "string" && typeof event.detail === "string" && typeof event.timestamp === "number")
+        .slice(0, 80);
+    } catch {
+      return [];
+    }
+  }
+
+  function recordHistory(title: string, detail: string): void {
+    const event: HistoryEvent = {
+      id: `history-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+      timestamp: Date.now(),
+      title,
+      detail,
+      mode: appMode,
+    };
+    historyEvents = [event, ...historyEvents].slice(0, 80);
+    localStorage.setItem(historyStorageKey, JSON.stringify(historyEvents));
+  }
+
+  function exportBackup(): void {
+    const exportedAt = new Date().toISOString();
+    const payload: BackupFile = {
+      app: "Abacus",
+      exportedAt,
+      mode: appMode,
+      book,
+    };
+    downloadJson(`abacus-${appMode === "demo" ? "leren" : "echt"}-${selectedYear.year}-${exportedAt.slice(0, 10)}.json`, payload);
+    safetyMessage = "Back-upbestand gemaakt.";
+    recordHistory("Back-up gemaakt", `Back-upbestand voor ${appMode === "demo" ? "leermodus" : "echte modus"} gemaakt.`);
+  }
+
+  function exportYearOverview(): void {
+    const exportedAt = new Date().toISOString();
+    const payload = {
+      app: "Abacus",
+      type: "year-overview",
+      exportedAt,
+      mode: appMode,
+      year: selectedYear.year,
+      startBalanceCents: selectedYear.startBalanceCents,
+      totalIncomeCents: totals.incomeCents,
+      totalExpenseCents: totals.outCents,
+      endBalanceCents: totals.endCents,
+      months: totals.months.map((month) => ({
+        month: month.month,
+        name: monthName(month.month),
+        startCents: month.totals.startCents,
+        incomeCents: month.totals.incomeCents,
+        fixedCents: month.totals.fixedCents,
+        variableCents: month.totals.variableCents,
+        differenceCents: month.totals.differenceCents,
+        endCents: month.totals.restCents,
+      })),
+    };
+    downloadJson(`abacus-overzicht-${selectedYear.year}-${exportedAt.slice(0, 10)}.json`, payload);
+    recordHistory("Jaaroverzicht gemaakt", `Overzicht voor ${selectedYear.year} gedownload.`);
+  }
+
+  function downloadJson(filename: string, payload: unknown): void {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function chooseRestoreFile(): void {
+    restoreInput?.click();
+  }
+
+  async function restoreBackup(event: Event): Promise<void> {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLInputElement)) return;
+    const file = target.files?.[0];
+    target.value = "";
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as BackupFile | Book;
+      const restoredBook = "book" in parsed && parsed.book ? parsed.book : (parsed as Book);
+      const issues = validateBook(restoredBook);
+      if (issues.length > 0) {
+        safetyMessage = `Back-up niet teruggezet: ${issues[0]}`;
+        recordHistory("Herstel geweigerd", `Bestand ${file.name} bevatte ${issues.length} aandachtspunt${issues.length === 1 ? "" : "en"}.`);
+        return;
+      }
+
+      book = restoredBook;
+      syncRecurringEntriesForBook(book);
+      drafts = createDrafts(book);
+      expandedDraftKey = null;
+      editingEntryId = null;
+      deleteConfirmEntryId = null;
+      activeMonth = currentMonthInSelectedYear ?? 1;
+      safetyMessage = `${file.name} teruggezet in ${appMode === "demo" ? "leermodus" : "echte modus"}.`;
+      recordHistory("Back-up teruggezet", `${file.name} teruggezet in ${appMode === "demo" ? "leermodus" : "echte modus"}.`);
+      requestAnimationFrame(() => selectMonth(activeMonth));
+    } catch {
+      safetyMessage = "Back-upbestand kon niet gelezen worden.";
+      recordHistory("Herstel mislukt", `${file.name} kon niet gelezen worden.`);
+    }
+  }
+
+  function resetCurrentMode(): void {
+    const modeLabel = appMode === "demo" ? "leermodus" : "echte modus";
+    if (!window.confirm(`Wil je de ${modeLabel} opnieuw starten? Dit vervangt de lokale gegevens in deze modus.`)) return;
+
+    const nextBook = defaultBookForMode(appMode);
+    book = nextBook;
+    syncRecurringEntriesForBook(book);
+    drafts = createDrafts(book);
+    expandedDraftKey = null;
+    editingEntryId = null;
+    deleteConfirmEntryId = null;
+    safetyMessage = `${appMode === "demo" ? "Leermodus" : "Echte modus"} opnieuw gestart.`;
+    recordHistory("Gegevens opnieuw gestart", `${appMode === "demo" ? "Leermodus" : "Echte modus"} opnieuw gestart.`);
+    requestAnimationFrame(() => selectMonth(currentMonthInSelectedYear ?? 1));
+  }
+
   function defaultBookForMode(mode: AppMode): Book {
     return mode === "demo" ? fictionalSampleBook() : createEmptyBook(2026);
   }
@@ -249,10 +402,12 @@
   function switchMode(nextMode: AppMode): void {
     if (appMode === nextMode) return;
     storageReady = false;
+    const previousMode = appMode;
     appMode = nextMode;
     loadBookForMode(nextMode);
     activeMonth = currentMonthInSelectedYear ?? 1;
     storageReady = true;
+    recordHistory("Gegevensmodus gewijzigd", `${previousMode === "demo" ? "Leren" : "Echt"} naar ${nextMode === "demo" ? "Leren" : "Echt"}.`);
     requestAnimationFrame(() => selectMonth(activeMonth));
   }
 
@@ -356,6 +511,7 @@
       ensureDraftsForSubcategory(subcategoryItem);
       newSubcategoryNames[section] = "";
       subcategoryMessage = `${subcategoryItem.name} toegevoegd aan ${SECTION_LABELS[section]}.`;
+      recordHistory("Categorie toegevoegd", `${subcategoryItem.name} toegevoegd aan ${SECTION_LABELS[section]}.`);
     } catch (error) {
       subcategoryMessage = error instanceof Error ? error.message : "Subcategorie kon niet worden toegevoegd.";
     }
@@ -374,6 +530,7 @@
       const subcategoryItem = renameBookSubcategory(book, subcategoryId, target.value);
       target.value = subcategoryItem.name;
       subcategoryMessage = `${subcategoryItem.name} bewaard.`;
+      recordHistory("Categorie hernoemd", `${subcategoryItem.name} bewaard.`);
     } catch (error) {
       const subcategoryItem = book.subcategories.find((item) => item.id === subcategoryId);
       if (subcategoryItem) target.value = subcategoryItem.name;
@@ -385,6 +542,7 @@
     try {
       moveBookSubcategory(book, subcategoryId, direction);
       subcategoryMessage = "Volgorde aangepast.";
+      recordHistory("Categorievolgorde aangepast", "De volgorde van categorieen werd aangepast.");
     } catch (error) {
       subcategoryMessage = error instanceof Error ? error.message : "Volgorde kon niet worden aangepast.";
     }
@@ -562,6 +720,7 @@
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
       recurringRuleMessage = "Regel toegepast op het jaar.";
+      recordHistory("Vaste regel aangepast", "Een vaste regel werd opnieuw toegepast op het jaar.");
     } catch (error) {
       recurringRuleMessage = error instanceof Error ? error.message : "Regel kon niet worden bewaard.";
     }
@@ -601,6 +760,7 @@
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
       recurringRuleMessage = `${rule.description} toegevoegd en toegepast.`;
+      recordHistory("Vaste regel toegevoegd", `${rule.description} toegevoegd en toegepast.`);
       newRuleDraft = emptyRecurringRuleDraft(newRuleDraft.section);
     } catch (error) {
       recurringRuleMessage = error instanceof Error ? error.message : "Regel kon niet worden toegevoegd.";
@@ -686,6 +846,7 @@
       createdAt: Date.now(),
     });
     markRecentEntry(newEntryId);
+    recordHistory("Boeking toegevoegd", `${monthName(month.month)}: ${description || "Nieuwe regel"} ${amountText ? formatMoneyCents(parseMoneyToCents(amountText)) : ""}`.trim());
 
     drafts[key] = {
       party: "",
@@ -739,6 +900,7 @@
     entry.description = editDraft.description.trim() || "Nieuwe regel";
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
     entry.comment = editDraft.comment.trim();
+    recordHistory("Boeking aangepast", `${entry.description} werd aangepast.`);
     editingEntryId = null;
     deleteConfirmEntryId = null;
     if (notePopup?.kind === "edit" && notePopup.entryId === entry.id) closeNotePopup();
@@ -765,6 +927,7 @@
     if (index < 0) return;
 
     month.entries.splice(index, 1);
+    recordHistory("Boeking verwijderd", `${entry.description} werd verwijderd uit ${monthName(month.month)}.`);
     if ((notePopup?.kind === "edit" || notePopup?.kind === "entry") && notePopup.entryId === entry.id) closeNotePopup();
     cancelEdit();
   }
@@ -919,6 +1082,7 @@
       if (entry) entry.comment = comment;
     }
 
+    if (comment !== noteInitialText.trim()) recordHistory("Melding bewaard", `${notePopup?.title ?? "Melding"} bijgewerkt.`);
     closeNotePopup();
   }
 
@@ -965,6 +1129,15 @@
       year: "numeric",
     }).format(date);
   }
+
+  function formatHistoryTime(timestamp: number): string {
+    return new Intl.DateTimeFormat("nl-BE", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(timestamp));
+  }
 </script>
 
 <main class:evening>
@@ -1001,7 +1174,7 @@
           <Moon size={19} />
         {/if}
       </button>
-      <button class="primary-action" type="button" title="Overzicht maken" data-tooltip="Overzicht maken"><Download size={18} />Overzicht</button>
+      <button class="primary-action" type="button" title="Overzicht maken" data-tooltip="Overzicht maken" onclick={exportYearOverview}><Download size={18} />Overzicht</button>
     </div>
   </header>
 
@@ -1362,6 +1535,14 @@
             </div>
             <button type="button" class="inline-action" onclick={() => openSettingsTab("data")}>Open gegevens</button>
           </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Trash2 size={20} /></div>
+            <div>
+              <h3>Opnieuw starten</h3>
+              <p>Vervang alleen de huidige modus door een verse start. Maak eerst een back-up als je twijfelt.</p>
+            </div>
+            <button type="button" class="inline-action danger-action" onclick={resetCurrentMode}>Start opnieuw</button>
+          </article>
         </section>
         <section class="settings-block" aria-label="Bewerkstatus">
           <header>
@@ -1380,11 +1561,11 @@
       {:else if activeView === "safety"}
         <header>
           <h2>Veiligheid</h2>
-          <p>Controleer of de gegevens leesbaar en gescheiden bewaard worden. Back-up en herstel blijven een latere, aparte stap.</p>
+          <p>Maak een leesbare back-up, zet een gecontroleerd bestand terug, en kijk of de gegevens gezond zijn.</p>
         </header>
         <section class="menu-card-grid" aria-label="Veiligheidsstatus">
           <article class="menu-card">
-            <div class="menu-card-icon"><ShieldCheck size={20} /></div>
+            <div class="menu-card-icon"><FileCheck size={20} /></div>
             <div>
               <h3>Gegevenscontrole</h3>
               <p>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</p>
@@ -1404,13 +1585,33 @@
               <p>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</p>
             </div>
           </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Download size={20} /></div>
+            <div>
+              <h3>Back-up maken</h3>
+              <p>Download een leesbaar JSON-bestand van de huidige modus. Dit is handig voor herstel of analyse.</p>
+            </div>
+            <button type="button" class="inline-action" onclick={exportBackup}>Maak back-up</button>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Upload size={20} /></div>
+            <div>
+              <h3>Back-up terugzetten</h3>
+              <p>Kies een Abacus JSON-bestand. De app controleert het bestand voordat het lokale boek wordt vervangen.</p>
+            </div>
+            <button type="button" class="inline-action" onclick={chooseRestoreFile}>Kies bestand</button>
+            <input bind:this={restoreInput} class="hidden-file-input" type="file" accept="application/json,.json" onchange={restoreBackup} />
+          </article>
         </section>
         <section class="settings-block" aria-label="Controlelijst veiligheid">
           <header>
             <div>
               <h3>Controlelijst</h3>
-              <p>Dit is nog geen back-upmanager, maar wel de eerste plek om problemen zichtbaar te maken.</p>
+              <p>Deze controle kijkt of het huidige boek past bij het gegevensmodel.</p>
             </div>
+            {#if safetyMessage}
+              <span class="settings-message" role="status">{safetyMessage}</span>
+            {/if}
           </header>
           {#if validationIssues.length === 0}
             <div class="empty-state">
@@ -1458,12 +1659,37 @@
             </div>
           {/if}
         </section>
+        <section class="settings-block" aria-label="Wijzigingen">
+          <header>
+            <div>
+              <h3>Wijzigingen vanaf nu</h3>
+              <p>Acties die je vanaf deze versie doet, komen hier bovenaan te staan.</p>
+            </div>
+          </header>
+          {#if visibleHistoryEvents.length === 0}
+            <div class="empty-state">
+              <Clock size={18} />
+              <span>Nog geen wijzigingen geregistreerd sinds deze functie actief is.</span>
+            </div>
+          {:else}
+            <div class="event-list">
+              {#each visibleHistoryEvents as event}
+                <article class="event-row">
+                  <span>{formatHistoryTime(event.timestamp)}</span>
+                  <strong>{event.title}</strong>
+                  <span>{event.detail}</span>
+                  <small>{event.mode === "demo" ? "Leren" : "Echt"}</small>
+                </article>
+              {/each}
+            </div>
+          {/if}
+        </section>
         <section class="menu-card-grid" aria-label="Historiek samenvatting">
           <article class="menu-card">
             <div class="menu-card-icon"><History size={20} /></div>
             <div>
-              <h3>Wijzigingen later</h3>
-              <p>Hier komt later echte wijzigingshistoriek met undo en herstel. Nu tonen we alvast wat er in het jaar staat.</p>
+              <h3>Wijzigingen</h3>
+              <p>Nieuwe acties worden nu gelogd. Volledige undo/redo komt later als aparte veilige functie.</p>
             </div>
           </article>
           <article class="menu-card">
