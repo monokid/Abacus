@@ -69,7 +69,7 @@
     | { kind: "edit"; entryId: string; title: string }
     | { kind: "entry"; entryId: string; title: string };
 
-  const demoStorageKey = "abacus.demo.2026.v1";
+  const demoStorageKey = "abacus.demo.2026.v2";
   const productionStorageKey = "abacus.book.v1";
   const modeStorageKey = "abacus.mode.v1";
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
@@ -213,6 +213,8 @@
     requestAnimationFrame(() => {
       scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`);
       scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
+      const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
+      if (card instanceof HTMLElement) card.focus({ preventScroll: true });
     });
   }
 
@@ -768,7 +770,7 @@
         </div>
 
         {#each sections as section}
-          <section class="budget-section" aria-label={SECTION_LABELS[section]}>
+          <section class:expense-section={section !== "inkomsten"} class:income-section={section === "inkomsten"} class="budget-section" aria-label={SECTION_LABELS[section]}>
             <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="section-title">
               {#if section === "inkomsten"}
                 <HandCoins size={16} />

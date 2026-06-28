@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthTotals, yearTotals } from "../../src/core/calc";
-import { createYear } from "../../src/core/model";
+import { createYear, validateBook } from "../../src/core/model";
 import { fictionalSampleBook } from "../../src/core/sample-data";
 
 describe("monthTotals", () => {
@@ -58,11 +58,19 @@ describe("yearTotals", () => {
     if (!year) throw new Error("Missing sample year");
 
     const totals = yearTotals(year);
+    const july = year.months[6];
+    const august = year.months[7];
+    if (!july || !august) throw new Error("Missing sample summer months");
 
-    expect(totals.incomeCents).toBe(2_897_244);
-    expect(totals.months[0]?.totals.bySubcategoryCents["sub-vast-energie"]).toBe(15_431);
-    expect(totals.months[1]?.totals.bySubcategoryCents["sub-var-auto"]).toBe(0);
-    expect(totals.months[0]?.totals.bySubcategoryCents["sub-vast-reserves"]).toBe(5_000);
+    expect(validateBook(book)).toEqual([]);
+    expect(totals.incomeCents).toBeGreaterThan(3_900_000);
+    expect(totals.months[6]?.totals.bySubcategoryCents["sub-vast-reserves"]).toBe(112_200);
+    expect(totals.months[6]?.totals.bySubcategoryCents["sub-vast-spar"]).toBe(20_000);
+    expect(totals.months[7]?.totals.bySubcategoryCents["sub-vast-bubar"]).toBe(20_258);
+    expect(july.entries.some((entry) => entry.party === "Nespresso" && entry.description === "Nespresso")).toBe(true);
+    expect(july.entries.some((entry) => entry.description === "mult-phil")).toBe(true);
+    expect(august.entries.some((entry) => entry.description === "hotel BilBerge")).toBe(true);
+    expect(book.subcategories.map((item) => item.name)).toEqual(expect.arrayContaining(["HH", "Spar", "Divers", "Bubar / Bijdrage", "Koffie"]));
   });
 });
 

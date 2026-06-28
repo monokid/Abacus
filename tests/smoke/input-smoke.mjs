@@ -6,7 +6,7 @@ import { chromium } from "playwright-core";
 
 const port = 5174;
 const baseUrl = `http://127.0.0.1:${port}`;
-const demoStorageKey = "abacus.demo.2026.v1";
+const demoStorageKey = "abacus.demo.2026.v2";
 const productionStorageKey = "abacus.book.v1";
 const modeStorageKey = "abacus.mode.v1";
 const screenshotDir = "test-results/smoke";
@@ -41,6 +41,7 @@ try {
   await clearStorage(page);
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
+  await expectLearningSampleData(page);
   await captureScreenshot(page, "01-initial-board.png");
   await expectCompactTopUi(page);
   await expectBrandVisualIdentity(page);
@@ -53,6 +54,7 @@ try {
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectDistinctSectionIcons(page);
+  await expectSectionColorScales(page);
   await expectCarryBalanceInIncomeGrid(page);
   await expectIconOnlyLockedRows(page);
   await expectNoMonthNumberLabels(page);
@@ -94,9 +96,11 @@ try {
   await navigateToMonth(page, 9);
   await navigateWithCardButton(page, 9, "Volgende maand", 10);
   await expectActiveMonthVisible(page, 10);
+  await expectMonthCardFocused(page, 10);
   await expectMonthTabsVisible(page, "na volgende maand op kaart");
   await navigateWithCardButton(page, 10, "Vorige maand", 9);
   await expectActiveMonthVisible(page, 9);
+  await expectMonthCardFocused(page, 9);
   await navigateToMonth(page, 12);
   await expectActiveMonthVisible(page, 12);
   await expectActiveCardCenteredEnough(page, 12);
@@ -213,6 +217,18 @@ async function expectFocusedInputInMonth(page, monthNumber, expectedLabelPrefix)
   }, { targetMonthNumber: monthNumber, labelPrefix: expectedLabelPrefix });
 
   if (issue) throw new Error(`Invoerfocuscontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
+async function expectLearningSampleData(page) {
+  const issue = await page.evaluate(() => {
+    const text = document.body.textContent ?? "";
+    for (const expected of ["Spar", "Nespresso", "mult-phil", "F secure", "Bubar", "hotel BilBerge"]) {
+      if (!text.includes(expected)) return `Leerpost ontbreekt: ${expected}.`;
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Leermodus-samplecontrole faalde: ${issue}`);
 }
 
 async function clearInvalidExpenseDraft(page) {
@@ -336,6 +352,7 @@ async function auditDarkMode(browser) {
   await expectCurrentMonthIndicator(page);
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "donkere modus");
+  await expectSectionColorScales(page);
   await expectMonthHeaderLayout(page, "donkere modus");
   await expectSavedRowActionColumnSnug(page, "donkere modus");
   await expectTooltips(page);
@@ -679,6 +696,17 @@ async function navigateWithCardButton(page, fromMonthNumber, buttonName, expecte
   await expectMonthTabsVisible(page, `${buttonName} vanaf maand ${fromMonthNumber}`);
 }
 
+async function expectMonthCardFocused(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
+    if (!(activeCard instanceof HTMLElement)) return "Maandkaart ontbreekt.";
+    if (document.activeElement !== activeCard) return "Focus staat niet op de geselecteerde maandkaart.";
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Maandkaart-focuscontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
 async function navigateByClickingCard(page, monthNumber) {
   await page.locator(`[data-month-card="${monthNumber}"] .month-title`).click();
   await page.waitForFunction(
@@ -752,6 +780,8 @@ async function expectActiveMonthTabProminent(page, monthNumber) {
 
     const markerStyle = getComputedStyle(activeTab, "::after");
     if (!markerStyle.content || markerStyle.content === "none") return "Actieve maandknop mist visuele markering.";
+    if (Number.parseFloat(markerStyle.bottom || "0") > 4) return "Actieve maandlijn staat te hoog en loopt door het bedrag.";
+    if (Number.parseFloat(markerStyle.height || "0") > 2.5) return "Actieve maandlijn is te zwaar bij het bedrag.";
 
     return "";
   }, monthNumber);
@@ -1055,6 +1085,39 @@ async function expectDistinctSectionIcons(page) {
   if (issue) throw new Error(`Sectie-icooncontrole faalde: ${issue}`);
 }
 
+async function expectSectionColorScales(page) {
+  const issue = await page.evaluate(() => {
+    const income = document.querySelector(".section-title.income");
+    const fixed = document.querySelector(".section-title.fixed");
+    const variable = document.querySelector(".section-title.variable");
+    if (!(income instanceof HTMLElement) || !(fixed instanceof HTMLElement) || !(variable instanceof HTMLElement)) {
+      return "Sectiekoppen ontbreken.";
+    }
+
+    const incomeColor = rgb(getComputedStyle(income).color);
+    const fixedColor = rgb(getComputedStyle(fixed).color);
+    const variableColor = rgb(getComputedStyle(variable).color);
+    if (!incomeColor || !fixedColor || !variableColor) return "Sectiekleuren konden niet gelezen worden.";
+    if (incomeColor.g <= incomeColor.r) return `Inkomstenkop is niet groener dan rood (${getComputedStyle(income).color}).`;
+    if (fixedColor.r <= fixedColor.g) return `Vaste-kostenkop is niet roder dan groen (${getComputedStyle(fixed).color}).`;
+    if (variableColor.r <= variableColor.g) return `Variabele-kostenkop is niet roder dan groen (${getComputedStyle(variable).color}).`;
+
+    for (const title of [income, fixed, variable]) {
+      const background = getComputedStyle(title).backgroundImage;
+      if (background === "none") return "Sectiekop mist subtiele kleurschakering.";
+    }
+    return "";
+
+    function rgb(value) {
+      const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) return null;
+      return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]) };
+    }
+  });
+
+  if (issue) throw new Error(`Sectiekleurcontrole faalde: ${issue}`);
+}
+
 async function expectCarryBalanceInIncomeGrid(page) {
   const issue = await page.evaluate(() => {
     const floatingCarry = document.querySelector(".carry-row");
@@ -1230,6 +1293,7 @@ async function expectStatusBarDoesNotOverlapCards(page, label) {
     const statusRect = statusBar.getBoundingClientRect();
     const blockers = Array.from(document.querySelectorAll(".new-entry-panel, .edit-row, .month-footer, :focus")).filter((element) => {
       if (!(element instanceof HTMLElement)) return false;
+      if (element.classList.contains("month-card")) return false;
       const rect = element.getBoundingClientRect();
       return rect.right > 0 && rect.left < window.innerWidth && rect.bottom > 0 && rect.top < window.innerHeight;
     });
