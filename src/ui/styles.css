@@ -462,6 +462,7 @@ h1 {
   top: 0;
   z-index: 6;
   display: flex;
+  justify-content: safe center;
   gap: 9px;
   overflow-x: auto;
   padding: 7px 24px 9px;
@@ -474,11 +475,6 @@ h1 {
 
 .month-tabs::-webkit-scrollbar {
   display: none;
-}
-
-.month-tabs::after {
-  flex: 0 0 max(20px, calc((100vw - 138px) / 2));
-  content: "";
 }
 
 .month-tabs button {
@@ -844,14 +840,14 @@ h1 {
   white-space: nowrap;
 }
 
-.amount-head,
-.action-head {
+.amount-head {
   text-align: right;
 }
 
 .action-head {
   height: 100%;
   border-left: 1px solid rgba(105, 87, 53, 0.08);
+  text-align: center;
 }
 
 .grid-head > * + *,

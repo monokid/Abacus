@@ -48,7 +48,6 @@ try {
   await expectBrandVisualIdentity(page);
   await expectTaskbarTime(page);
   await expectCurrentMonthIndicator(page);
-  await expectMonthRailStaysAnchoredForVisibleNeighbor(page);
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "eerste laadbeurt");
   await expectMonthFootersAligned(page, "eerste laadbeurt");
@@ -839,6 +838,10 @@ async function expectActiveMonthTabProminent(page, monthNumber) {
     const tabRect = activeTab.getBoundingClientRect();
     const tabsRect = tabs.getBoundingClientRect();
     if (tabRect.left < tabsRect.left - 1 || tabRect.right > tabsRect.right + 1) return "Actieve maandknop blijft niet zichtbaar in de maandbalk.";
+    const tabCenter = tabRect.left + tabRect.width / 2;
+    const tabsCenter = tabsRect.left + tabsRect.width / 2;
+    const canCenter = tabs.scrollLeft > 2 && tabs.scrollLeft < tabs.scrollWidth - tabs.clientWidth - 2;
+    if (canCenter && Math.abs(tabCenter - tabsCenter) > 30) return "Actieve maandknop centreert niet in de maandbalk.";
 
     const markerStyle = getComputedStyle(activeTab, "::after");
     if (!markerStyle.content || markerStyle.content === "none") return "Actieve maandknop mist visuele markering.";
@@ -849,32 +852,6 @@ async function expectActiveMonthTabProminent(page, monthNumber) {
   }, monthNumber);
 
   if (issue) throw new Error(`Actieve maandknopcontrole faalde voor maand ${monthNumber}: ${issue}`);
-}
-
-async function expectMonthRailStaysAnchoredForVisibleNeighbor(page) {
-  await navigateToMonth(page, 6);
-  const before = await page.evaluate(() => {
-    const tabs = document.querySelector('[data-testid="month-tabs"]');
-    const july = document.querySelector('[data-month-tab="7"]');
-    if (!(tabs instanceof HTMLElement) || !(july instanceof HTMLElement)) return { error: "Maandbalk of juli-knop ontbreekt.", left: 0, skip: false };
-    const tabsRect = tabs.getBoundingClientRect();
-    const julyRect = july.getBoundingClientRect();
-    if (julyRect.left < tabsRect.left || julyRect.right > tabsRect.right) return { error: "", left: tabs.scrollLeft, skip: true };
-    return { error: "", left: tabs.scrollLeft, skip: false };
-  });
-  if (before.error) throw new Error(`Maandrail-ankercontrole faalde: ${before.error}`);
-  if (before.skip) return;
-
-  await page.locator('[data-month-tab="7"]').click();
-  const moved = await page.evaluate((previousScrollLeft) => {
-    const tabs = document.querySelector('[data-testid="month-tabs"]');
-    if (!(tabs instanceof HTMLElement)) return "Maandbalk ontbreekt na klik.";
-    const before = Number(previousScrollLeft);
-    if (Math.abs(tabs.scrollLeft - before) > 2) return `Maandbalk schoof ondanks zichtbare buurmaand (${before} -> ${tabs.scrollLeft}).`;
-    return "";
-  }, before.left);
-  if (moved) throw new Error(`Maandrail-ankercontrole faalde: ${moved}`);
-  await navigateToMonth(page, 6);
 }
 
 async function expectCompactTopUi(page) {
@@ -1290,7 +1267,8 @@ async function expectQuietActionHeaders(page) {
 
       const actionHead = head.querySelector(".action-head");
       if (!(actionHead instanceof HTMLElement)) return "Ledgerkop mist de actiecel.";
-      if ((actionHead.textContent ?? "").trim()) return "Actiekop moet visueel leeg blijven.";
+      if ((actionHead.textContent ?? "").trim() !== "Actie") return "Actiekop toont niet duidelijk 'Actie'.";
+      if (getComputedStyle(actionHead).textAlign !== "center") return "Actiekop is niet gecentreerd boven de knoppen.";
 
       const amountHead = head.querySelector(".amount-head");
       if (!(amountHead instanceof HTMLElement)) return "Ledgerkop mist de bedragcel.";
