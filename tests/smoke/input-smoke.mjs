@@ -60,6 +60,7 @@ try {
   await expectMonthTabsVisible(page, "na terug naar bovenzijde");
   await navigateToMonth(page, 9);
   await expectActiveMonthVisible(page, 9);
+  await expectActiveMonthTabProminent(page, 9);
   await expectActiveCardProminent(page, 9);
   await expectActiveCardNotClipped(page, 9);
   await expectMonthHeaderLayout(page, "september actief");
@@ -121,6 +122,7 @@ try {
   await expectVisibleText(page, "Pensioenfonds aangepast");
   await expectVisibleText(page, "Inkomen aangepast rooktest");
   await expectDraftPanelsContained(page, "na verversen");
+  await auditResponsiveViewports(browser);
 
   if (runtimeErrors.length > 0) {
     throw new Error(`Browserfouten:\n${runtimeErrors.join("\n")}`);
@@ -224,6 +226,29 @@ async function deleteVariableRow(page) {
   await expectHiddenText(page, "Deze regel verwijderen?");
   await page.getByLabel("Verwijderen voorbereiden: Klik weg rooktest").click();
   await page.getByLabel("Verwijderen bevestigen").click();
+}
+
+async function auditResponsiveViewports(browser) {
+  const viewports = [
+    { name: "06-responsive-small-laptop.png", width: 760, height: 720, month: 9 },
+    { name: "07-responsive-narrow.png", width: 390, height: 844, month: 9 },
+  ];
+
+  for (const viewport of viewports) {
+    const page = await browser.newPage();
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto(baseUrl, { waitUntil: "networkidle" });
+    await page.evaluate((key) => localStorage.removeItem(key), storageKey);
+    await page.reload({ waitUntil: "networkidle" });
+    await navigateToMonth(page, viewport.month);
+    await expectActiveMonthVisible(page, viewport.month);
+    await expectActiveMonthTabProminent(page, viewport.month);
+    await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
+    await expectDraftPanelsContained(page, `${viewport.width}x${viewport.height}`);
+    await expectNoPageHorizontalOverflow(page, `${viewport.width}x${viewport.height}`);
+    await capturePageScreenshot(page, viewport.name);
+    await page.close();
+  }
 }
 
 async function expectIncomeDraftTabOrder(page, monthNumber) {
@@ -492,6 +517,24 @@ async function expectActiveCardProminent(page, monthNumber) {
   if (issue) throw new Error(`Actieve-kaartcontrole faalde voor maand ${monthNumber}: ${issue}`);
 }
 
+async function expectActiveMonthTabProminent(page, monthNumber) {
+  const issue = await page.evaluate((targetMonthNumber) => {
+    const activeTab = document.querySelector(`[data-month-tab="${targetMonthNumber}"]`);
+    if (!(activeTab instanceof HTMLElement)) return "Actieve maandknop ontbreekt.";
+    if (activeTab.getAttribute("aria-current") !== "date") return "Actieve maandknop mist aria-current.";
+
+    const style = getComputedStyle(activeTab);
+    if (style.boxShadow === "none") return "Actieve maandknop heeft geen duidelijke selectie.";
+
+    const markerStyle = getComputedStyle(activeTab, "::after");
+    if (!markerStyle.content || markerStyle.content === "none") return "Actieve maandknop mist visuele markering.";
+
+    return "";
+  }, monthNumber);
+
+  if (issue) throw new Error(`Actieve maandknopcontrole faalde voor maand ${monthNumber}: ${issue}`);
+}
+
 async function expectCompactTopUi(page) {
   const issue = await page.evaluate(() => {
     const firstCard = document.querySelector(".month-card");
@@ -513,6 +556,25 @@ async function expectCompactTopUi(page) {
   });
 
   if (issue) throw new Error(`Compactheidscontrole faalde: ${issue}`);
+}
+
+async function expectNoPageHorizontalOverflow(page, label) {
+  const issue = await page.evaluate(() => {
+    const tolerance = 2;
+    const rootWidth = document.documentElement.clientWidth;
+    for (const element of Array.from(document.body.querySelectorAll("*"))) {
+      if (!(element instanceof HTMLElement)) continue;
+      if (element.closest(".board, .month-tabs, .toolbar, .header-actions")) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.left < -tolerance || rect.right > rootWidth + tolerance) {
+        return `Element buiten viewport: ${element.className || element.tagName}.`;
+      }
+    }
+
+    return "";
+  });
+
+  if (issue) throw new Error(`Responsive overloopcontrole faalde (${label}): ${issue}`);
 }
 
 async function expectActiveCardNotClipped(page, monthNumber) {
@@ -610,7 +672,15 @@ async function expectMonthHeaderLayout(page, label) {
       const imageRect = image.getBoundingClientRect();
       const titleRect = title.getBoundingClientRect();
       const toolsRect = tools.getBoundingClientRect();
+      const headerStyle = getComputedStyle(header);
       const cardIssues = [];
+
+      if (imageRect.width < 68 || imageRect.height < 68) {
+        cardIssues.push(`Zichtbare maandkaart ${index + 1}: maandicoon is te klein.`);
+      }
+      if (!headerStyle.backgroundImage.includes("linear-gradient")) {
+        cardIssues.push(`Zichtbare maandkaart ${index + 1}: header mist seizoenskleur.`);
+      }
 
       for (const [name, rect] of [
         ["maandicoon", imageRect],
@@ -685,6 +755,13 @@ async function expectScrollbarsHidden(page) {
 }
 
 async function captureScreenshot(page, filename) {
+  await page.screenshot({
+    path: `${screenshotDir}/${filename}`,
+    fullPage: false,
+  });
+}
+
+async function capturePageScreenshot(page, filename) {
   await page.screenshot({
     path: `${screenshotDir}/${filename}`,
     fullPage: false,

@@ -48,6 +48,14 @@
     amountError: string;
   }
 
+  interface MonthView {
+    name: string;
+    image: string;
+    accent: string;
+    accentSoft: string;
+    accentMist: string;
+  }
+
   const storageKey = "abacus.fictionalProfile.v1";
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
   const initialBook = fictionalSampleBook();
@@ -69,19 +77,19 @@
   });
 
   const totals = $derived(yearTotals(selectedYear));
-  const months = [
-    { name: "Januari", image: januariImage },
-    { name: "Februari", image: februariImage },
-    { name: "Maart", image: maartImage },
-    { name: "April", image: aprilImage },
-    { name: "Mei", image: meiImage },
-    { name: "Juni", image: juniImage },
-    { name: "Juli", image: juliImage },
-    { name: "Augustus", image: augustusImage },
-    { name: "September", image: septemberImage },
-    { name: "Oktober", image: oktoberImage },
-    { name: "November", image: novemberImage },
-    { name: "December", image: decemberImage },
+  const months: MonthView[] = [
+    { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)" },
+    { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)" },
+    { name: "Maart", image: maartImage, accent: "#668344", accentSoft: "#e3ead4", accentMist: "rgba(227, 234, 212, 0.7)" },
+    { name: "April", image: aprilImage, accent: "#78934d", accentSoft: "#e8ecd2", accentMist: "rgba(232, 236, 210, 0.72)" },
+    { name: "Mei", image: meiImage, accent: "#b28b3d", accentSoft: "#f0e4bf", accentMist: "rgba(240, 228, 191, 0.72)" },
+    { name: "Juni", image: juniImage, accent: "#9a9a45", accentSoft: "#ece8bb", accentMist: "rgba(236, 232, 187, 0.72)" },
+    { name: "Juli", image: juliImage, accent: "#aa743f", accentSoft: "#eed7bd", accentMist: "rgba(238, 215, 189, 0.72)" },
+    { name: "Augustus", image: augustusImage, accent: "#b17a35", accentSoft: "#efdabe", accentMist: "rgba(239, 218, 190, 0.72)" },
+    { name: "September", image: septemberImage, accent: "#996039", accentSoft: "#ead0bd", accentMist: "rgba(234, 208, 189, 0.7)" },
+    { name: "Oktober", image: oktoberImage, accent: "#8c5831", accentSoft: "#e7cdb8", accentMist: "rgba(231, 205, 184, 0.72)" },
+    { name: "November", image: novemberImage, accent: "#8b6a79", accentSoft: "#e5d8df", accentMist: "rgba(229, 216, 223, 0.7)" },
+    { name: "December", image: decemberImage, accent: "#5f7a68", accentSoft: "#dce6dc", accentMist: "rgba(220, 230, 220, 0.7)" },
   ];
 
   onMount(() => {
@@ -118,6 +126,15 @@
 
   function monthImage(monthNumber: number): string {
     return months[monthNumber - 1]?.image ?? januariImage;
+  }
+
+  function monthTheme(monthNumber: number): MonthView {
+    return months[monthNumber - 1] ?? months[0];
+  }
+
+  function monthThemeStyle(monthNumber: number): string {
+    const theme = monthTheme(monthNumber);
+    return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist};`;
   }
 
   function selectMonth(monthNumber: number): void {
@@ -385,11 +402,11 @@
     </div>
 
     <nav class="toolbar" aria-label="Hoofdnavigatie">
-      <button class="tool active" type="button"><CalendarDays size={18} />Jaar</button>
-      <button class="tool" type="button"><RotateCcw size={18} />Bewerken</button>
-      <button class="tool" type="button"><Settings size={18} />Instellingen</button>
-      <button class="tool" type="button"><Shield size={18} />Veiligheid</button>
-      <button class="tool" type="button"><History size={18} />Historiek</button>
+      <button class="tool active" type="button"><CalendarDays size={18} /><span class="tool-label">Jaar</span></button>
+      <button class="tool" type="button"><RotateCcw size={18} /><span class="tool-label">Bewerken</span></button>
+      <button class="tool" type="button"><Settings size={18} /><span class="tool-label">Instellingen</span></button>
+      <button class="tool" type="button"><Shield size={18} /><span class="tool-label">Veiligheid</span></button>
+      <button class="tool" type="button"><History size={18} /><span class="tool-label">Historiek</span></button>
     </nav>
 
     <div class="header-actions">
@@ -427,6 +444,8 @@
         type="button"
         class:active={activeMonth === month.month}
         data-month-tab={month.month}
+        aria-current={activeMonth === month.month ? "date" : undefined}
+        style={monthThemeStyle(month.month)}
         onclick={() => selectMonth(month.month)}
       >
         <span>{month.month}</span>
@@ -445,6 +464,7 @@
         aria-label={monthName(month.month)}
         aria-pressed={activeMonth === month.month}
         data-month-card={month.month}
+        style={monthThemeStyle(month.month)}
         onclick={(event) => selectCardFromClick(event, month.month)}
         onkeydown={(event) => selectCardFromKey(event, month.month)}
         role="button"

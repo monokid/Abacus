@@ -59,9 +59,10 @@ describe("yearTotals", () => {
 
     const totals = yearTotals(year);
 
-    expect(totals.incomeCents).toBe(471_412);
+    expect(totals.incomeCents).toBe(2_897_244);
     expect(totals.months[0]?.totals.bySubcategoryCents["sub-vast-energie"]).toBe(15_431);
     expect(totals.months[1]?.totals.bySubcategoryCents["sub-var-auto"]).toBe(0);
+    expect(totals.months[0]?.totals.bySubcategoryCents["sub-vast-reserves"]).toBe(5_000);
   });
 });
 

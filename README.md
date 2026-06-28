@@ -8,10 +8,10 @@ an elderly Belgian user.
 
 ## Project Status
 
-Planning and clean-room rebuild setup.
+Clean-room rebuild in progress.
 
-No production app code has been added yet. The first implementation milestone will build
-the core budget engine and fictional sample data before the visible desktop app grows.
+The repo now has a tested budget core, fictional sample data, and a visible Svelte year
+view for feedback. Electron packaging is still a later milestone.
 
 ## Product Direction
 
@@ -40,6 +40,7 @@ See [ADR 0001](docs/adr/0001-stack-direction.md).
 - [Subagent Workflow](docs/subagent-workflow.md)
 - [Source Inventory](docs/source-inventory.md)
 - [GitHub Plan](docs/github-plan.md)
+- [Excel Import And Tester Plan](docs/excel-import-and-testing-plan.md)
 
 ## License
 

@@ -146,6 +146,12 @@ h1 {
   font-size: 0.88rem;
 }
 
+.tool-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tool.active,
 .primary-action {
   border-color: rgba(48, 96, 60, 0.42);
@@ -248,6 +254,7 @@ h1 {
 }
 
 .month-tabs button {
+  position: relative;
   flex: 0 0 138px;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -260,7 +267,9 @@ h1 {
   padding: 6px 9px;
   border: 1px solid rgba(105, 87, 53, 0.2);
   border-radius: 8px;
-  background: rgba(255, 253, 247, 0.72);
+  background:
+    linear-gradient(90deg, var(--month-accent-mist), rgba(255, 253, 247, 0.82) 42%),
+    rgba(255, 253, 247, 0.72);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -273,7 +282,7 @@ h1 {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #dcc38c;
+  background: color-mix(in srgb, var(--month-accent) 30%, #dcc38c);
   color: #3f321d;
   font-weight: 800;
 }
@@ -291,8 +300,25 @@ h1 {
 }
 
 .month-tabs button.active {
-  border-color: #2f6a3c;
-  box-shadow: inset 0 -3px 0 #2f6a3c;
+  border-color: color-mix(in srgb, var(--month-accent) 65%, #2f6a3c);
+  background:
+    linear-gradient(90deg, var(--month-accent-soft), rgba(255, 253, 247, 0.92) 52%),
+    #fffdf7;
+  box-shadow:
+    inset 0 -3px 0 color-mix(in srgb, var(--month-accent) 65%, #2f6a3c),
+    0 0 0 1px color-mix(in srgb, var(--month-accent) 30%, transparent),
+    0 8px 18px rgba(65, 51, 26, 0.12);
+}
+
+.month-tabs button.active::after {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--month-accent) 70%, #2f6a3c);
+  content: "";
 }
 
 .evening .month-tabs button {
@@ -337,12 +363,12 @@ h1 {
 }
 
 .month-card.active-card {
-  border-color: rgba(48, 106, 60, 0.62);
+  border-color: color-mix(in srgb, var(--month-accent) 64%, #2f6a3c);
   background: rgba(255, 254, 249, 0.98);
   z-index: 2;
   box-shadow:
     0 22px 44px rgba(65, 51, 26, 0.18),
-    0 0 0 2px rgba(48, 106, 60, 0.16);
+    0 0 0 2px color-mix(in srgb, var(--month-accent) 24%, transparent);
 }
 
 .evening .month-card {
@@ -353,14 +379,17 @@ h1 {
 
 .month-header {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 82px minmax(0, 1fr);
   grid-template-areas:
     "image title"
     "tools tools";
-  gap: 8px 12px;
+  gap: 7px 14px;
   align-items: start;
-  padding: 13px 14px 11px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid rgba(115, 94, 61, 0.18);
+  background:
+    linear-gradient(90deg, var(--month-accent-mist), rgba(255, 253, 247, 0.92) 48%, rgba(255, 253, 247, 0.78)),
+    rgba(255, 253, 247, 0.72);
 }
 
 .month-tools {
@@ -382,10 +411,11 @@ h1 {
 
 .month-header img {
   grid-area: image;
-  width: 52px;
-  height: 52px;
+  width: 74px;
+  height: 74px;
   object-fit: contain;
   align-self: center;
+  filter: drop-shadow(0 8px 10px rgba(65, 51, 26, 0.14));
 }
 
 .month-title {
@@ -396,7 +426,7 @@ h1 {
 
 .month-header h2 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.58rem;
+  font-size: 1.72rem;
   line-height: 1.04;
   letter-spacing: 0;
   overflow-wrap: anywhere;
@@ -805,7 +835,7 @@ h1 {
   color: #eadbb6;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 640px) {
   .app-header {
     grid-template-columns: 1fr;
   }
@@ -826,6 +856,22 @@ h1 {
   .status-bar {
     margin: 0 18px 18px;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 860px) {
+  .toolbar .tool:not(.active) {
+    width: 34px;
+    padding: 0;
+  }
+
+  .toolbar .tool:not(.active) .tool-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 }
 
