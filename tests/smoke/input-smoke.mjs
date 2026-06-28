@@ -79,6 +79,7 @@ try {
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
   await expectExcelScrollbarsUsable(page, "eerste laadbeurt");
+  await expectGlobalScrollbarTheme(page, "eerste laadbeurt");
   await expectMonthLedgerScrollbarsQuiet(page);
   await expectLedgerCanScrollClearOfFooter(page, "eerste laadbeurt");
   await expectCompactLedgerRows(page, "eerste laadbeurt");
@@ -341,6 +342,7 @@ async function auditResponsiveViewports(browser) {
     await expectMonthHeaderLayout(page, `${viewport.width}x${viewport.height}`);
     await expectSpreadsheetColumnDividers(page);
     await expectExcelScrollbarsUsable(page, `${viewport.width}x${viewport.height}`);
+    await expectGlobalScrollbarTheme(page, `${viewport.width}x${viewport.height}`);
     await expectMonthLedgerScrollbarsQuiet(page);
     await expectLedgerCanScrollClearOfFooter(page, `${viewport.width}x${viewport.height}`);
     await expectCompactLedgerRows(page, `${viewport.width}x${viewport.height}`);
@@ -1660,7 +1662,21 @@ async function expectExcelScrollbarsUsable(page, label) {
     return "";
   });
 
-  if (issue) throw new Error(`Excel-scrollcontrole faalde (${label}): ${issue}`);
+    if (issue) throw new Error(`Excel-scrollcontrole faalde (${label}): ${issue}`);
+}
+
+async function expectGlobalScrollbarTheme(page, label) {
+  const issue = await page.evaluate(() => {
+    const rootStyle = getComputedStyle(document.documentElement);
+    if (rootStyle.scrollbarWidth === "none") return "Globale scrollbarstijl is verborgen in plaats van gethematiseerd.";
+    if (window.innerWidth >= 760) {
+      const bodyOverflow = getComputedStyle(document.body).overflowY;
+      if (bodyOverflow !== "hidden") return `Pagina verbergt de globale verticale scrollbar niet op desktop (${bodyOverflow}).`;
+    }
+    return "";
+  });
+
+  if (issue) throw new Error(`Globale-scrollbarcontrole faalde (${label}): ${issue}`);
 }
 
 async function expectCompactLedgerRows(page, label) {

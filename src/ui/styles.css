@@ -7,8 +7,49 @@
     sans-serif;
   color: #1f261d;
   background: #efe8d9;
+  scrollbar-color: rgba(94, 78, 48, 0.52) rgba(232, 225, 203, 0.92);
+  scrollbar-width: auto;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar {
+  width: 15px;
+  height: 15px;
+}
+
+::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(232, 225, 203, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(112, 92, 58, 0.14);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid rgba(232, 225, 203, 0.92);
+  border-radius: 999px;
+  background: rgba(94, 78, 48, 0.58);
+}
+
+::-webkit-scrollbar-corner {
+  background: rgba(232, 225, 203, 0.92);
+}
+
+:root:has(main.evening) {
+  scrollbar-color: rgba(219, 190, 118, 0.58) rgba(23, 38, 31, 0.94);
+}
+
+:root:has(main.evening)::-webkit-scrollbar-track {
+  background: rgba(23, 38, 31, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(219, 190, 118, 0.16);
+}
+
+:root:has(main.evening)::-webkit-scrollbar-thumb {
+  border-color: rgba(23, 38, 31, 0.94);
+  background: rgba(219, 190, 118, 0.58);
+}
+
+:root:has(main.evening)::-webkit-scrollbar-corner {
+  background: rgba(23, 38, 31, 0.94);
 }
 
 * {
@@ -19,6 +60,12 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+@media (min-width: 760px) {
+  body {
+    overflow: hidden;
+  }
 }
 
 button {
