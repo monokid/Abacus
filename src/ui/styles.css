@@ -397,6 +397,26 @@ h1 {
   cursor: pointer;
 }
 
+.inline-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.menu-card-actions,
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.menu-card-actions {
+  grid-column: 2;
+}
+
+.history-actions {
+  justify-content: flex-end;
+}
+
 .danger-action {
   border-color: rgba(130, 45, 36, 0.28);
   background: #7a2b24;
@@ -2369,6 +2389,14 @@ h1 {
 
   .inline-action {
     grid-column: auto;
+  }
+
+  .menu-card-actions {
+    grid-column: auto;
+  }
+
+  .history-actions {
+    justify-content: flex-start;
   }
 
   .history-row {

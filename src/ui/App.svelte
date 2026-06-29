@@ -105,6 +105,15 @@
     mode: AppMode;
   }
 
+  interface UndoSnapshot {
+    id: string;
+    timestamp: number;
+    title: string;
+    detail: string;
+    mode: AppMode;
+    book: Book;
+  }
+
   interface BackupFile {
     app?: string;
     exportedAt?: string;
@@ -124,6 +133,7 @@
   const productionStorageKey = "abacus.book.v1";
   const modeStorageKey = "abacus.mode.v1";
   const historyStorageKey = "abacus.history.v1";
+  const undoLimit = 20;
   const viewLabels: Record<AppView, string> = {
     year: "Jaar",
     edit: "Bewerken",
@@ -180,6 +190,9 @@
   let newRuleDraft = $state<RecurringRuleDraft>(emptyRecurringRuleDraft("vaste_kosten"));
   let editingRuleId = $state<string | null>(null);
   let historyEvents = $state<HistoryEvent[]>([]);
+  let undoStack = $state<UndoSnapshot[]>([]);
+  let redoStack = $state<UndoSnapshot[]>([]);
+  let undoMessage = $state("");
   let restoreInput: HTMLInputElement | null = $state(null);
 
   const selectedYear = $derived.by(() => {
@@ -288,6 +301,88 @@
     localStorage.setItem(historyStorageKey, JSON.stringify(historyEvents));
   }
 
+  function cloneBook(sourceBook: Book): Book {
+    return JSON.parse(JSON.stringify(sourceBook)) as Book;
+  }
+
+  function rememberUndo(title: string, detail: string): void {
+    undoStack = [
+      {
+        id: `undo-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+        timestamp: Date.now(),
+        title,
+        detail,
+        mode: appMode,
+        book: cloneBook(book),
+      },
+      ...undoStack,
+    ].slice(0, undoLimit);
+    redoStack = [];
+    undoMessage = "";
+  }
+
+  function clearUndoRedo(): void {
+    undoStack = [];
+    redoStack = [];
+    undoMessage = "";
+  }
+
+  function restoreBookSnapshot(snapshotBook: Book): void {
+    book = cloneBook(snapshotBook);
+    syncRecurringEntriesForBook(book);
+    drafts = createDrafts(book);
+    expandedDraftKey = null;
+    editingEntryId = null;
+    deleteConfirmEntryId = null;
+    editDraft = emptyDraft();
+    activeMonth = currentMonthInSelectedYear ?? 1;
+    requestAnimationFrame(() => selectMonth(activeMonth));
+  }
+
+  function undoLastChange(): void {
+    const snapshot = undoStack[0];
+    if (!snapshot) {
+      undoMessage = "Er is niets om ongedaan te maken.";
+      return;
+    }
+
+    redoStack = [
+      {
+        ...snapshot,
+        id: `redo-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+        timestamp: Date.now(),
+        book: cloneBook(book),
+      },
+      ...redoStack,
+    ].slice(0, undoLimit);
+    undoStack = undoStack.slice(1);
+    restoreBookSnapshot(snapshot.book);
+    undoMessage = `Ongedaan gemaakt: ${snapshot.title}.`;
+    recordHistory("Wijziging ongedaan gemaakt", snapshot.title);
+  }
+
+  function redoLastChange(): void {
+    const snapshot = redoStack[0];
+    if (!snapshot) {
+      undoMessage = "Er is niets om opnieuw te doen.";
+      return;
+    }
+
+    undoStack = [
+      {
+        ...snapshot,
+        id: `undo-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+        timestamp: Date.now(),
+        book: cloneBook(book),
+      },
+      ...undoStack,
+    ].slice(0, undoLimit);
+    redoStack = redoStack.slice(1);
+    restoreBookSnapshot(snapshot.book);
+    undoMessage = `Opnieuw gedaan: ${snapshot.title}.`;
+    recordHistory("Wijziging opnieuw gedaan", snapshot.title);
+  }
+
   function exportBackup(): void {
     const exportedAt = new Date().toISOString();
     const payload: BackupFile = {
@@ -359,16 +454,10 @@
         return;
       }
 
-      book = restoredBook;
-      syncRecurringEntriesForBook(book);
-      drafts = createDrafts(book);
-      expandedDraftKey = null;
-      editingEntryId = null;
-      deleteConfirmEntryId = null;
-      activeMonth = currentMonthInSelectedYear ?? 1;
+      rememberUndo("Back-up teruggezet", `${file.name} teruggezet.`);
+      restoreBookSnapshot(restoredBook);
       safetyMessage = `${file.name} teruggezet in ${appMode === "demo" ? "leermodus" : "echte modus"}.`;
       recordHistory("Back-up teruggezet", `${file.name} teruggezet in ${appMode === "demo" ? "leermodus" : "echte modus"}.`);
-      requestAnimationFrame(() => selectMonth(activeMonth));
     } catch {
       safetyMessage = "Back-upbestand kon niet gelezen worden.";
       recordHistory("Herstel mislukt", `${file.name} kon niet gelezen worden.`);
@@ -380,15 +469,10 @@
     if (!window.confirm(`Wil je de ${modeLabel} opnieuw starten? Dit vervangt de lokale gegevens in deze modus.`)) return;
 
     const nextBook = defaultBookForMode(appMode);
-    book = nextBook;
-    syncRecurringEntriesForBook(book);
-    drafts = createDrafts(book);
-    expandedDraftKey = null;
-    editingEntryId = null;
-    deleteConfirmEntryId = null;
+    rememberUndo("Gegevens opnieuw gestart", `${appMode === "demo" ? "Leermodus" : "Echte modus"} opnieuw gestart.`);
+    restoreBookSnapshot(nextBook);
     safetyMessage = `${appMode === "demo" ? "Leermodus" : "Echte modus"} opnieuw gestart.`;
     recordHistory("Gegevens opnieuw gestart", `${appMode === "demo" ? "Leermodus" : "Echte modus"} opnieuw gestart.`);
-    requestAnimationFrame(() => selectMonth(currentMonthInSelectedYear ?? 1));
   }
 
   function defaultBookForMode(mode: AppMode): Book {
@@ -406,6 +490,7 @@
     appMode = nextMode;
     loadBookForMode(nextMode);
     activeMonth = currentMonthInSelectedYear ?? 1;
+    clearUndoRedo();
     storageReady = true;
     recordHistory("Gegevensmodus gewijzigd", `${previousMode === "demo" ? "Leren" : "Echt"} naar ${nextMode === "demo" ? "Leren" : "Echt"}.`);
     requestAnimationFrame(() => selectMonth(activeMonth));
@@ -507,6 +592,7 @@
 
   function addSubcategory(section: Section): void {
     try {
+      rememberUndo("Categorie toegevoegd", `${newSubcategoryNames[section]} toegevoegd aan ${SECTION_LABELS[section]}.`);
       const subcategoryItem = addBookSubcategory(book, section, newSubcategoryNames[section]);
       ensureDraftsForSubcategory(subcategoryItem);
       newSubcategoryNames[section] = "";
@@ -527,6 +613,8 @@
     const target = event.currentTarget;
     if (!(target instanceof HTMLInputElement)) return;
     try {
+      const currentName = book.subcategories.find((item) => item.id === subcategoryId)?.name ?? "";
+      if (target.value.trim() !== currentName) rememberUndo("Categorie hernoemd", `${currentName} hernoemd.`);
       const subcategoryItem = renameBookSubcategory(book, subcategoryId, target.value);
       target.value = subcategoryItem.name;
       subcategoryMessage = `${subcategoryItem.name} bewaard.`;
@@ -540,6 +628,7 @@
 
   function moveSubcategory(subcategoryId: string, direction: -1 | 1): void {
     try {
+      rememberUndo("Categorievolgorde aangepast", "De volgorde van categorieen werd aangepast.");
       moveBookSubcategory(book, subcategoryId, direction);
       subcategoryMessage = "Volgorde aangepast.";
       recordHistory("Categorievolgorde aangepast", "De volgorde van categorieen werd aangepast.");
@@ -716,6 +805,8 @@
 
   function applyRecurringRuleChange(ruleId: string, patch: Partial<RecurringRule>): void {
     try {
+      const rule = book.recurringRules.find((item) => item.id === ruleId);
+      rememberUndo("Vaste regel aangepast", rule?.description ?? "Vaste regel aangepast.");
       updateBookRecurringRule(book, ruleId, patch);
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
@@ -742,6 +833,7 @@
 
   function addRecurringRule(): void {
     try {
+      rememberUndo("Vaste regel toegevoegd", newRuleDraft.description || "Nieuwe vaste regel");
       const rule = addBookRecurringRule(book, {
         active: true,
         section: newRuleDraft.section,
@@ -833,6 +925,7 @@
       return;
     }
 
+    rememberUndo("Boeking toegevoegd", `${monthName(month.month)}: ${description || "Nieuwe regel"}`);
     const newEntryId = `demo-${month.month}-${section}-${Date.now()}`;
     month.entries.push({
       id: newEntryId,
@@ -896,6 +989,7 @@
       return;
     }
 
+    rememberUndo("Boeking aangepast", entry.description);
     entry.party = editDraft.party.trim();
     entry.description = editDraft.description.trim() || "Nieuwe regel";
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
@@ -926,6 +1020,7 @@
     const index = month.entries.findIndex((item) => item.id === entry.id);
     if (index < 0) return;
 
+    rememberUndo("Boeking verwijderd", entry.description);
     month.entries.splice(index, 1);
     recordHistory("Boeking verwijderd", `${entry.description} werd verwijderd uit ${monthName(month.month)}.`);
     if ((notePopup?.kind === "edit" || notePopup?.kind === "entry") && notePopup.entryId === entry.id) closeNotePopup();
@@ -1079,7 +1174,10 @@
       editDraft.comment = comment;
     } else if (notePopup?.kind === "entry") {
       const entry = findEntry(notePopup.entryId);
-      if (entry) entry.comment = comment;
+      if (entry && comment !== noteInitialText.trim()) {
+        rememberUndo("Melding bewaard", entry.description);
+        entry.comment = comment;
+      }
     }
 
     if (comment !== noteInitialText.trim()) recordHistory("Melding bewaard", `${notePopup?.title ?? "Melding"} bijgewerkt.`);
@@ -1543,6 +1641,17 @@
             </div>
             <button type="button" class="inline-action danger-action" onclick={resetCurrentMode}>Start opnieuw</button>
           </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><History size={20} /></div>
+            <div>
+              <h3>Ongedaan maken</h3>
+              <p>{undoStack.length} stap{undoStack.length === 1 ? "" : "pen"} terug, {redoStack.length} stap{redoStack.length === 1 ? "" : "pen"} opnieuw beschikbaar.</p>
+            </div>
+            <div class="menu-card-actions">
+              <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan</button>
+              <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw</button>
+            </div>
+          </article>
         </section>
         <section class="settings-block" aria-label="Bewerkstatus">
           <header>
@@ -1550,6 +1659,9 @@
               <h3>Wat staat er nu in dit jaar?</h3>
               <p>Een snelle controle voordat je categorieen of regels aanpast.</p>
             </div>
+            {#if undoMessage}
+              <span class="settings-message" role="status">{undoMessage}</span>
+            {/if}
           </header>
           <div class="status-tile-grid">
             <div class="status-tile"><span>Boekingen</span><strong>{totalEntryCount()}</strong></div>
@@ -1629,7 +1741,7 @@
       {:else}
         <header>
           <h2>Historiek</h2>
-          <p>Een rustig overzicht van wat recent in het jaar staat. Volledige undo/redo komt later.</p>
+          <p>Een rustig overzicht van recente boekingen, nieuwe acties en herstelstappen.</p>
         </header>
         <section class="settings-block" aria-label="Recente boekingen">
           <header>
@@ -1665,7 +1777,14 @@
               <h3>Wijzigingen vanaf nu</h3>
               <p>Acties die je vanaf deze versie doet, komen hier bovenaan te staan.</p>
             </div>
+            <div class="history-actions">
+              <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan maken</button>
+              <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw doen</button>
+            </div>
           </header>
+          {#if undoMessage}
+            <span class="settings-message" role="status">{undoMessage}</span>
+          {/if}
           {#if visibleHistoryEvents.length === 0}
             <div class="empty-state">
               <Clock size={18} />

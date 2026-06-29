@@ -1270,7 +1270,18 @@ async function expectRecurringRuleSettings(page) {
   await page.getByRole("button", { name: "Historiek" }).click();
   await expectVisibleText(page, "Vaste regel toegevoegd");
   await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
+  await page.getByRole("button", { name: "Ongedaan maken" }).click();
+  await expectVisibleText(page, "Ongedaan gemaakt");
   await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 7);
+  await expectMonthCardHiddenText(page, 7, "Eenmalige rooktest");
+
+  await page.getByRole("button", { name: "Historiek" }).click();
+  await page.getByRole("button", { name: "Opnieuw doen" }).click();
+  await expectVisibleText(page, "Opnieuw gedaan");
+  await page.getByRole("button", { name: "Jaar" }).click();
+  await navigateToMonth(page, 7);
+  await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
 }
 
 async function expectTooltips(page) {
