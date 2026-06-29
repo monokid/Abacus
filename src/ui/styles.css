@@ -92,12 +92,15 @@ main.evening {
 
 .app-header {
   display: grid;
-  grid-template-columns: auto minmax(170px, 0.32fr) minmax(0, auto) auto;
+  grid-template-columns: auto minmax(210px, 0.44fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 6px 14px 5px;
+  min-height: 50px;
+  padding: 5px 14px;
   border-bottom: 1px solid rgba(94, 68, 36, 0.2);
-  background: rgba(253, 250, 241, 0.86);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 244, 0.94), rgba(246, 240, 225, 0.9)),
+    rgba(253, 250, 241, 0.86);
 }
 
 .evening .app-header {
@@ -156,7 +159,7 @@ p {
 
 h1 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.46rem;
+  font-size: 1.36rem;
   line-height: 1;
   letter-spacing: 0;
 }
@@ -182,6 +185,7 @@ h1 {
 
 .toolbar {
   min-width: 0;
+  justify-content: center;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -201,15 +205,13 @@ h1 {
 
 .year-menu-card {
   display: grid;
-  grid-template-columns: auto minmax(92px, 1fr);
-  grid-template-areas:
-    "year start"
-    "year end";
+  grid-template-columns: auto minmax(78px, auto) minmax(78px, auto);
+  grid-template-areas: "year start end";
   align-items: center;
-  gap: 1px 9px;
+  gap: 8px;
   min-width: 0;
-  min-height: 40px;
-  padding: 5px 10px;
+  min-height: 34px;
+  padding: 4px 10px;
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background:
@@ -228,7 +230,7 @@ h1 {
   overflow: hidden;
   color: #73684f;
   font-size: 0.73rem;
-  line-height: 1.15;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -243,12 +245,12 @@ h1 {
 
 .menu-page {
   display: grid;
-  gap: 8px 12px;
+  gap: 8px;
   align-content: start;
   height: calc(100vh - 52px);
   min-height: calc(100vh - 88px);
   overflow-y: auto;
-  padding: 12px 18px 72px;
+  padding: 10px 18px 72px;
   background:
     linear-gradient(180deg, rgba(251, 247, 237, 0.92), rgba(236, 228, 211, 0.92)),
     #efe8d9;
@@ -256,14 +258,6 @@ h1 {
 
 .menu-page > * {
   min-width: 0;
-}
-
-.menu-page:has(.settings-tabs) {
-  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
-}
-
-.menu-page:has(.settings-tabs) > * {
-  grid-column: 2;
 }
 
 .menu-page > header,
@@ -282,6 +276,12 @@ h1 {
   justify-content: space-between;
   gap: 14px;
   padding: 8px 12px;
+}
+
+.menu-heading {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: center !important;
 }
 
 .menu-page h2 {
@@ -309,25 +309,23 @@ h1 {
 }
 
 .settings-tabs {
-  grid-column: 1;
-  position: sticky;
-  top: 8px;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  width: 100%;
-  padding: 6px;
+  justify-content: flex-end;
+  gap: 3px;
+  width: auto;
+  padding: 3px;
+  box-shadow: none;
 }
 
 .settings-tabs button {
-  width: 100%;
-  min-height: 32px;
+  width: auto;
+  min-height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   color: #4f5d43;
   background: transparent;
-  padding: 0 14px;
+  padding: 0 10px;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -365,6 +363,81 @@ h1 {
 
 .settings-block h3 {
   font-size: 1.18rem;
+}
+
+.workbook-block {
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.workbook-block > header {
+  min-height: 32px;
+}
+
+.sheet-head,
+.category-row,
+.rule-table-row,
+.data-row,
+.backup-row {
+  display: grid;
+  align-items: center;
+  gap: 0;
+  border-right: 1px solid rgba(105, 87, 53, 0.1);
+  border-bottom: 1px solid rgba(105, 87, 53, 0.14);
+  background: rgba(255, 253, 247, 0.52);
+}
+
+.sheet-head {
+  min-height: 27px;
+  color: #807259;
+  background: rgba(245, 241, 229, 0.78);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sheet-head > *,
+.category-row > *,
+.rule-table-row > *,
+.data-row > *,
+.backup-row > * {
+  min-width: 0;
+  padding: 5px 8px;
+  border-left: 1px solid rgba(105, 87, 53, 0.1);
+}
+
+.sheet-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  border: 1px solid rgba(105, 87, 53, 0.12);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.sheet-section-row.income {
+  color: #145d38;
+  background: linear-gradient(90deg, rgba(224, 238, 220, 0.82), rgba(248, 250, 244, 0.72));
+}
+
+.sheet-section-row.fixed {
+  color: #7a2b24;
+  background: linear-gradient(90deg, rgba(246, 229, 221, 0.82), rgba(250, 246, 240, 0.72));
+}
+
+.sheet-section-row.variable {
+  color: #7a4a12;
+  background: linear-gradient(90deg, rgba(245, 234, 206, 0.84), rgba(250, 247, 238, 0.72));
+}
+
+.sheet-section-row span,
+.muted-action {
+  color: #6b604d;
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  font-size: 0.74rem;
+  font-weight: 650;
 }
 
 .menu-card-grid {
@@ -637,7 +710,7 @@ h1 {
 
 .overview-row {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) repeat(5, minmax(96px, auto)) minmax(82px, auto);
+  grid-template-columns: minmax(110px, 1fr) repeat(6, minmax(92px, auto)) minmax(82px, auto);
   align-items: center;
   gap: 8px;
   border: 1px solid rgba(105, 87, 53, 0.12);
@@ -692,6 +765,69 @@ h1 {
   background: rgba(232, 240, 222, 0.72);
   padding: 6px 9px;
   font-size: 0.82rem;
+}
+
+.category-sheet,
+.rule-sheet,
+.data-sheet,
+.backup-sheet {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgba(105, 87, 53, 0.14);
+  border-radius: 7px;
+  background: rgba(255, 253, 247, 0.4);
+}
+
+.category-row {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(72px, 0.34fr) minmax(60px, 0.28fr) minmax(82px, auto) minmax(118px, auto);
+  min-height: 35px;
+}
+
+.category-row input,
+.data-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 26px;
+  border: 1px solid rgba(105, 87, 53, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 253, 247, 0.9);
+  padding: 0 7px;
+  font: inherit;
+}
+
+.category-row .number-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-actions {
+  display: inline-flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.sheet-actions button,
+.add-sheet-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  min-height: 27px;
+  border: 1px solid rgba(67, 86, 54, 0.24);
+  border-radius: 6px;
+  color: #405538;
+  background: rgba(255, 253, 247, 0.78);
+  padding: 0;
+  cursor: pointer;
+}
+
+.sheet-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.add-sheet-row {
+  background: rgba(244, 240, 227, 0.42);
 }
 
 .category-settings-grid {
@@ -783,6 +919,119 @@ h1 {
 .rule-card-list {
   display: grid;
   gap: 8px;
+}
+
+.rule-composer {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid rgba(105, 87, 53, 0.14);
+  border-radius: 8px;
+  background: rgba(244, 240, 227, 0.42);
+  padding: 10px;
+}
+
+.rule-composer header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-composer h4 {
+  margin: 0;
+  color: #24341f;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.rule-example {
+  flex: 0 0 min(420px, 42%);
+  color: #6b604d;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.rule-sheet {
+  gap: 0;
+}
+
+.rule-table-row {
+  grid-template-columns: minmax(58px, 0.36fr) minmax(122px, 0.82fr) minmax(102px, 0.72fr) minmax(160px, 1.25fr) minmax(86px, 0.55fr) minmax(126px, 0.9fr) minmax(108px, 0.72fr) minmax(92px, auto);
+  min-height: 35px;
+}
+
+.rule-table-row > span,
+.rule-table-row > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-table-item {
+  display: grid;
+}
+
+.rule-table-item.inactive-rule {
+  opacity: 0.68;
+}
+
+.rule-table-row .rule-switch {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.data-row {
+  grid-template-columns: minmax(150px, 0.8fr) minmax(160px, 0.8fr) minmax(260px, 1.4fr) minmax(150px, auto);
+  min-height: 37px;
+}
+
+.data-row > span,
+.data-row > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-row {
+  grid-template-columns: minmax(190px, 0.85fr) minmax(150px, 0.72fr) minmax(280px, 1.5fr) minmax(132px, auto);
+  min-height: 38px;
+}
+
+.backup-row.sheet-head {
+  grid-template-columns: minmax(190px, 0.85fr) minmax(150px, 0.72fr) minmax(280px, 1.5fr) minmax(132px, auto);
+}
+
+.backup-topic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backup-row strong,
+.backup-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backup-topic svg {
+  flex: 0 0 auto;
+  color: #355f40;
+}
+
+.backup-row strong {
+  color: #24341f;
+  font-weight: 800;
+}
+
+.backup-row > span {
+  color: #536047;
+  font-size: 0.82rem;
+}
+
+.backup-row .inline-action {
+  grid-column: auto;
+  justify-self: start;
 }
 
 .rule-card,
@@ -1048,15 +1297,20 @@ h1 {
 .evening .settings-card,
 .evening .settings-tabs,
 .evening .settings-block,
+.evening .category-sheet,
+.evening .rule-sheet,
+.evening .data-sheet,
+.evening .backup-sheet,
 .evening .overview-strip article,
-.evening .backup-action-row,
+.evening .backup-row,
 .evening .category-settings-card,
 .evening .menu-card,
 .evening .status-tile,
 .evening .history-row,
 .evening .event-row,
 .evening .rule-card,
-.evening .new-rule-panel {
+.evening .new-rule-panel,
+.evening .rule-composer {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(219, 190, 118, 0.18);
 }
@@ -1066,7 +1320,9 @@ h1 {
 .evening .settings-card span,
 .evening .settings-block p,
 .evening .overview-strip span,
-.evening .backup-action-row span,
+.evening .backup-row span,
+.evening .sheet-section-row span,
+.evening .muted-action,
 .evening .subcategory-editor-row span,
 .evening .menu-card p,
 .evening .status-tile span,
@@ -1074,6 +1330,7 @@ h1 {
 .evening .event-row small,
 .evening .rule-card-summary span,
 .evening .new-rule-panel p,
+.evening .rule-composer p,
 .evening .rule-switch {
   color: #eadbb6;
 }
@@ -1082,11 +1339,12 @@ h1 {
 .evening .menu-page h2,
 .evening .settings-card strong,
 .evening .settings-block h3,
-.evening .backup-action-row strong,
+.evening .backup-row strong,
 .evening .category-settings-card h4,
 .evening .menu-card h3,
 .evening .rule-card-summary strong,
-.evening .new-rule-panel h4 {
+.evening .new-rule-panel h4,
+.evening .rule-composer h4 {
   color: #f0e4c1;
 }
 
@@ -1107,14 +1365,49 @@ h1 {
   color: #d9e6c9;
 }
 
-.evening .backup-action-row.danger-row {
+.evening .backup-topic svg {
+  color: #d9e6c9;
+}
+
+.evening .backup-action-row.danger-row,
+.evening .backup-row.danger-row {
   background: rgba(122, 43, 36, 0.18);
   border-color: rgba(239, 170, 142, 0.22);
 }
 
 .evening .backup-action-row.danger-row > svg,
-.evening .backup-action-row.danger-row strong {
+.evening .backup-action-row.danger-row strong,
+.evening .backup-row.danger-row .backup-topic svg,
+.evening .backup-row.danger-row strong {
   color: #f0bba2;
+}
+
+.evening .sheet-head {
+  color: #e4d3a9;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.evening .sheet-section-row.income {
+  color: #b6e0b2;
+  background: rgba(87, 132, 81, 0.17);
+}
+
+.evening .sheet-section-row.fixed {
+  color: #f0bba2;
+  background: rgba(122, 43, 36, 0.18);
+}
+
+.evening .sheet-section-row.variable {
+  color: #f0d38f;
+  background: rgba(151, 112, 42, 0.18);
+}
+
+.evening .category-row,
+.evening .rule-table-row,
+.evening .data-row,
+.evening .backup-row {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(219, 190, 118, 0.14);
 }
 
 .evening .event-row strong {
@@ -1129,8 +1422,11 @@ h1 {
 
 .evening .subcategory-editor-row input,
 .evening .subcategory-add-row input,
+.evening .category-row input,
 .evening .subcategory-editor-row button,
 .evening .subcategory-add-row button,
+.evening .sheet-actions button,
+.evening .add-sheet-row button,
 .evening .rule-edit-toggle,
 .evening .rule-edit-grid input,
 .evening .rule-edit-grid select,

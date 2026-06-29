@@ -807,6 +807,10 @@
     return parts.join(", ");
   }
 
+  function rulesForSection(section: Section): RecurringRule[] {
+    return book.recurringRules.filter((rule) => rule.section === section);
+  }
+
   function statusCenterLabel(): string {
     return activeView === "year" ? `${monthName(activeMonth)} geselecteerd` : viewLabels[activeView];
   }
@@ -882,6 +886,20 @@
     const range = `${monthName(rule.startMonth).toLowerCase()} - ${end}`;
     if (!frequencyNeedsPattern(rule.frequency)) return `${ruleFrequencyLabel(rule)} / ${range}`;
     return `${ruleFrequencyLabel(rule)}: ${rule.pattern || "geen patroon"} / ${range}`;
+  }
+
+  function rulePeriodLabel(rule: RecurringRule): string {
+    const end = rule.endMonth === null ? "Doorlopend" : monthName(rule.endMonth);
+    return `${monthName(rule.startMonth)} - ${end}`;
+  }
+
+  function frequencyHelp(frequency: RecurringFrequency): string {
+    if (frequency === "monthly") return "Elke maand vanaf de startmaand, bijvoorbeeld huur, pensioen of telecom.";
+    if (frequency === "quarterly") return "Om de drie maanden vanaf de startmaand, bijvoorbeeld kwartaalbijdragen.";
+    if (frequency === "yearly") return "Een keer per jaar in de startmaand.";
+    if (frequency === "months") return "Alleen in gekozen maanden. Gebruik cijfers zoals 3,6,9,12.";
+    if (frequency === "dates") return "Op specifieke datums. Gebruik bijvoorbeeld 01/07 of 01/01,01/07.";
+    return "Op een vaste weekdag. Gebruik bijvoorbeeld maandag of eerste maandag.";
   }
 
   function frequencyFromValue(value: string): RecurringFrequency {
@@ -1592,6 +1610,7 @@
           <div class="overview-table" role="table" aria-label="Maanden met bedragen">
             <div class="overview-row overview-head" role="row">
               <span>Maand</span>
+              <span>Start</span>
               <span>Inkomsten</span>
               <span>Vast</span>
               <span>Variabel</span>
@@ -1603,6 +1622,7 @@
               {@const sourceMonth = monthByNumber(month.month)}
               <div class="overview-row" role="row">
                 <strong>{monthName(month.month)}</strong>
+                <span>{formatMoneyCents(month.totals.startCents)}</span>
                 <span>{formatMoneyCents(month.totals.incomeCents)}</span>
                 <span>{formatMoneyCents(month.totals.fixedCents)}</span>
                 <span>{formatMoneyCents(month.totals.variableCents)}</span>
@@ -1614,29 +1634,64 @@
           </div>
         </section>
       {:else if activeView === "settings"}
-        <header>
-          <h2>Instellingen</h2>
-          <p>Kies rustig wat je wil aanpassen. Elke instelling blijft op zijn eigen pagina.</p>
+        <header class="menu-heading">
+          <div>
+            <h2>Instellingen</h2>
+            <p>Categorieen, vaste regels en gegevens staan als compacte werkbladen bij elkaar.</p>
+          </div>
+          <nav class="settings-tabs" aria-label="Instellingen onderdelen">
+            <button class:active={activeSettingsTab === "categories"} type="button" aria-pressed={activeSettingsTab === "categories"} onclick={() => (activeSettingsTab = "categories")}>{settingsTabLabels.categories}</button>
+            <button class:active={activeSettingsTab === "rules"} type="button" aria-pressed={activeSettingsTab === "rules"} onclick={() => (activeSettingsTab = "rules")}>{settingsTabLabels.rules}</button>
+            <button class:active={activeSettingsTab === "data"} type="button" aria-pressed={activeSettingsTab === "data"} onclick={() => (activeSettingsTab = "data")}>{settingsTabLabels.data}</button>
+          </nav>
         </header>
-        <nav class="settings-tabs" aria-label="Instellingen onderdelen">
-          <button class:active={activeSettingsTab === "categories"} type="button" aria-pressed={activeSettingsTab === "categories"} onclick={() => (activeSettingsTab = "categories")}>{settingsTabLabels.categories}</button>
-          <button class:active={activeSettingsTab === "rules"} type="button" aria-pressed={activeSettingsTab === "rules"} onclick={() => (activeSettingsTab = "rules")}>{settingsTabLabels.rules}</button>
-          <button class:active={activeSettingsTab === "data"} type="button" aria-pressed={activeSettingsTab === "data"} onclick={() => (activeSettingsTab = "data")}>{settingsTabLabels.data}</button>
-        </nav>
 
         {#if activeSettingsTab === "data"}
-          <section class="settings-card settings-panel" aria-label="Gegevensmodus">
-            <div>
-              <strong>Gegevensmodus</strong>
-              <span>{appMode === "demo" ? "Leermodus gebruikt de fictieve begroting 2026." : "Echte modus bewaart apart van de leermodus."}</span>
-            </div>
-            <div class="mode-switch" aria-label="Gegevensmodus">
-              <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
-              <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+          <section class="settings-block workbook-block" aria-label="Gegevensmodus">
+            <header>
+              <div>
+                <h3>Gegevens</h3>
+                <p>Alles wat bepaalt in welke omgeving en welk jaar je werkt.</p>
+              </div>
+            </header>
+            <div class="data-sheet">
+              <div class="data-row sheet-head">
+                <span>Onderdeel</span>
+                <span>Huidige waarde</span>
+                <span>Uitleg</span>
+                <span>Actie</span>
+              </div>
+              <div class="data-row">
+                <strong>Gegevensmodus</strong>
+                <span>{appMode === "demo" ? "Leermodus" : "Productie"}</span>
+                <span>{appMode === "demo" ? "Fictieve begroting 2026 voor oefenen en testen." : "Echte gegevens, apart bewaard van leermodus."}</span>
+                <div class="mode-switch" aria-label="Gegevensmodus">
+                  <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
+                  <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+                </div>
+              </div>
+              <div class="data-row">
+                <strong>Jaar</strong>
+                <span>{selectedYear.year}</span>
+                <span>Het actieve jaarblad in deze modus.</span>
+                <span class="muted-action">Automatisch</span>
+              </div>
+              <div class="data-row">
+                <strong>Startsaldo</strong>
+                <span>{formatMoneyCents(selectedYear.startBalanceCents)}</span>
+                <span>Basis waarop januari verder rekent.</span>
+                <span class="muted-action">Later bewerkbaar</span>
+              </div>
+              <div class="data-row">
+                <strong>Opslag</strong>
+                <span>{saveStatus}</span>
+                <span>Lokaal bewaard in de huidige browseromgeving.</span>
+                <span class="muted-action">{appMode === "demo" ? "Demo-opslag" : "Productie-opslag"}</span>
+              </div>
             </div>
           </section>
         {:else if activeSettingsTab === "categories"}
-          <section class="settings-block" aria-label="Categorieen beheren">
+          <section class="settings-block workbook-block" aria-label="Categorieen beheren">
             <header>
               <div>
                 <h3>Categorieen</h3>
@@ -1647,53 +1702,67 @@
               {/if}
             </header>
 
-            <div class="category-settings-grid">
+            <div class="category-sheet">
+              <div class="category-row sheet-head">
+                <span>Subcategorie</span>
+                <span>Boekingen</span>
+                <span>Regels</span>
+                <span>Volgorde</span>
+                <span>Status</span>
+              </div>
               {#each sections as section}
                 {@const sectionSubcategories = settingsSubcategoriesFor(section)}
-                <article class:income-settings={section === "inkomsten"} class:fixed-settings={section === "vaste_kosten"} class:variable-settings={section === "variabele_kosten"} class="category-settings-card">
-                  <h4>{SECTION_LABELS[section]}</h4>
-                  <div class="subcategory-editor-list">
-                    {#each sectionSubcategories as subcategory, index}
-                      <div class="subcategory-editor-row">
-                        <input
-                          aria-label={`Naam van subcategorie ${subcategory.name}`}
-                          value={subcategory.name}
-                          onblur={(event) => renameSubcategory(subcategory.id, event)}
-                          onkeydown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              event.currentTarget.blur();
-                            }
-                          }}
-                        />
-                        <span>{subcategoryUsageLabel(subcategory.id)}</span>
-                        <button type="button" aria-label={`${subcategory.name} omhoog`} title="Omhoog" data-tooltip="Omhoog" disabled={index === 0} onclick={() => moveSubcategory(subcategory.id, -1)}>
-                          <ArrowUp size={15} />
-                        </button>
-                        <button type="button" aria-label={`${subcategory.name} omlaag`} title="Omlaag" data-tooltip="Omlaag" disabled={index === sectionSubcategories.length - 1} onclick={() => moveSubcategory(subcategory.id, 1)}>
-                          <ArrowDown size={15} />
-                        </button>
-                      </div>
-                    {/each}
-                  </div>
-
-                  <div class="subcategory-add-row">
+                <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="sheet-section-row">
+                  <strong>{SECTION_LABELS[section]}</strong>
+                  <span>{sectionSubcategories.length} subcategorie{sectionSubcategories.length === 1 ? "" : "en"}</span>
+                </div>
+                {#each sectionSubcategories as subcategory, index}
+                  {@const usage = subcategoryUsage(book, subcategory.id)}
+                  <div class="category-row">
                     <input
-                      aria-label={`Nieuwe subcategorie voor ${SECTION_LABELS[section]}`}
-                      bind:value={newSubcategoryNames[section]}
-                      placeholder="Nieuwe subcategorie"
-                      onkeydown={(event) => maybeAddSubcategoryFromKey(event, section)}
+                      aria-label={`Naam van subcategorie ${subcategory.name}`}
+                      value={subcategory.name}
+                      onblur={(event) => renameSubcategory(subcategory.id, event)}
+                      onkeydown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          event.currentTarget.blur();
+                        }
+                      }}
                     />
-                    <button type="button" aria-label={`Subcategorie toevoegen aan ${SECTION_LABELS[section]}`} title="Toevoegen" data-tooltip="Toevoegen" onclick={() => addSubcategory(section)}>
-                      <Plus size={16} />
-                    </button>
+                    <span class="number-cell" title={subcategoryUsageLabel(subcategory.id)}>{usage.entries}</span>
+                    <span class="number-cell" title={subcategoryUsageLabel(subcategory.id)}>{usage.recurringRules}</span>
+                    <span class="sheet-actions">
+                      <button type="button" aria-label={`${subcategory.name} omhoog`} title="Omhoog" data-tooltip="Omhoog" disabled={index === 0} onclick={() => moveSubcategory(subcategory.id, -1)}>
+                        <ArrowUp size={15} />
+                      </button>
+                      <button type="button" aria-label={`${subcategory.name} omlaag`} title="Omlaag" data-tooltip="Omlaag" disabled={index === sectionSubcategories.length - 1} onclick={() => moveSubcategory(subcategory.id, 1)}>
+                        <ArrowDown size={15} />
+                      </button>
+                    </span>
+                    <span class="muted-action">Auto</span>
                   </div>
-                </article>
+                {/each}
+
+                <div class="category-row add-sheet-row">
+                  <input
+                    aria-label={`Nieuwe subcategorie voor ${SECTION_LABELS[section]}`}
+                    bind:value={newSubcategoryNames[section]}
+                    placeholder={`Nieuwe subcategorie voor ${SECTION_LABELS[section]}`}
+                    onkeydown={(event) => maybeAddSubcategoryFromKey(event, section)}
+                  />
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <button type="button" aria-label={`Subcategorie toevoegen aan ${SECTION_LABELS[section]}`} title="Toevoegen" data-tooltip="Toevoegen" onclick={() => addSubcategory(section)}>
+                    <Plus size={16} />
+                  </button>
+                </div>
               {/each}
             </div>
           </section>
         {:else}
-          <section class="settings-block" aria-label="Regels beheren">
+          <section class="settings-block workbook-block" aria-label="Regels beheren">
             <header>
               <div>
                 <h3>Vaste regels</h3>
@@ -1704,10 +1773,152 @@
               {/if}
             </header>
 
-            <div class="rule-card-list">
-              {#each book.recurringRules as rule}
-                <article class:inactive-rule={!rule.active} class="rule-card">
-                  <div class="rule-card-main">
+            <section class="rule-composer" aria-label="Nieuwe vaste regel">
+              <header>
+                <div>
+                  <h4>Nieuwe vaste regel</h4>
+                  <p>Kies eerst de hoofdgroep en subcategorie. Omschrijving en bedrag zijn verplicht; partij mag leeg blijven.</p>
+                </div>
+                <span class="rule-example">Voorbeelden: huur elke maand, pensioen elke maand, belasting in maart, verzekering jaarlijks.</span>
+              </header>
+              <div class="new-rule-grid">
+                <label>
+                  <span>Hoofdgroep</span>
+                  <select
+                    aria-label="Hoofdgroep voor nieuwe regel"
+                    title="Kies waar de regel in de maandkaarten verschijnt."
+                    data-tooltip="Kies waar de regel in de maandkaarten verschijnt."
+                    value={newRuleDraft.section}
+                    onchange={(event) => {
+                      const section = sectionFromValue(inputValue(event));
+                      newRuleDraft = { ...newRuleDraft, section, subcategoryId: firstSubcategoryId(section) };
+                    }}
+                  >
+                    {#each sections as section}
+                      <option value={section}>{SECTION_LABELS[section]}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label>
+                  <span>Subcategorie</span>
+                  <select
+                    aria-label="Subcategorie voor nieuwe regel"
+                    title="De subcategorie waaronder de regel automatisch wordt geplaatst."
+                    data-tooltip="De subcategorie waaronder de regel automatisch wordt geplaatst."
+                    value={newRuleDraft.subcategoryId ?? ""}
+                    onchange={(event) => (newRuleDraft = { ...newRuleDraft, subcategoryId: inputValue(event) || null })}
+                  >
+                    <option value="">Geen subcategorie</option>
+                    {#each subcategoriesFor(newRuleDraft.section) as subcategory}
+                      <option value={subcategory.id}>{subcategory.name}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label>
+                  <span>Partij</span>
+                  <input aria-label="Partij voor nieuwe regel" bind:value={newRuleDraft.party} placeholder="Bij wie?" title="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." data-tooltip="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." onkeydown={maybeAddMonthlyRuleFromKey} />
+                </label>
+                <label class="wide-rule-field">
+                  <span>Omschrijving</span>
+                  <input aria-label="Omschrijving voor nieuwe regel" bind:value={newRuleDraft.description} placeholder="Wat komt terug?" title="Verplicht. Dit is de tekst die in de maandkaart verschijnt." data-tooltip="Verplicht. Dit is de tekst die in de maandkaart verschijnt." onkeydown={maybeAddMonthlyRuleFromKey} />
+                </label>
+                <label>
+                  <span>Bedrag</span>
+                  <input aria-label="Bedrag voor nieuwe regel" bind:value={newRuleDraft.amountText} inputmode="decimal" placeholder="0,00" title="Verplicht. Gebruik bijvoorbeeld 76,43." data-tooltip="Verplicht. Gebruik bijvoorbeeld 76,43." onkeydown={maybeAddMonthlyRuleFromKey} />
+                </label>
+                <label>
+                  <span>Herhaling</span>
+                  <select
+                    aria-label="Herhaling voor nieuwe regel"
+                    title={frequencyHelp(newRuleDraft.frequency)}
+                    data-tooltip={frequencyHelp(newRuleDraft.frequency)}
+                    value={newRuleDraft.frequency}
+                    onchange={(event) => {
+                      const frequency = frequencyFromValue(inputValue(event));
+                      newRuleDraft = { ...newRuleDraft, frequency, pattern: defaultPatternForFrequency(frequency, newRuleDraft.startMonth, newRuleDraft.pattern) };
+                    }}
+                  >
+                    {#each recurringFrequencies as frequency}
+                      <option value={frequency.value}>{frequency.label}</option>
+                    {/each}
+                  </select>
+                </label>
+                {#if frequencyNeedsPattern(newRuleDraft.frequency)}
+                  <label class="wide-rule-field">
+                    <span>{patternLabel(newRuleDraft.frequency)}</span>
+                    <input
+                      aria-label="Patroon voor nieuwe regel"
+                      bind:value={newRuleDraft.pattern}
+                      placeholder={patternPlaceholder(newRuleDraft.frequency)}
+                      title={frequencyHelp(newRuleDraft.frequency)}
+                      data-tooltip={frequencyHelp(newRuleDraft.frequency)}
+                      onkeydown={maybeAddMonthlyRuleFromKey}
+                    />
+                  </label>
+                {/if}
+                <label>
+                  <span>Vanaf</span>
+                  <select
+                    aria-label="Startmaand voor nieuwe regel"
+                    title="De eerste maand waarin deze regel mag verschijnen."
+                    data-tooltip="De eerste maand waarin deze regel mag verschijnen."
+                    value={String(newRuleDraft.startMonth)}
+                    onchange={(event) => {
+                      const startMonth = monthFromValue(inputValue(event), newRuleDraft.startMonth);
+                      newRuleDraft = {
+                        ...newRuleDraft,
+                        startMonth,
+                        pattern: defaultPatternForFrequency(newRuleDraft.frequency, startMonth, newRuleDraft.pattern),
+                      };
+                    }}
+                  >
+                    {#each selectedYear.months as month}
+                      <option value={String(month.month)}>{monthName(month.month)}</option>
+                    {/each}
+                  </select>
+                </label>
+                <label>
+                  <span>Tot en met</span>
+                  <select
+                    aria-label="Eindmaand voor nieuwe regel"
+                    title="Laat leeg doorlopen of kies de laatste maand."
+                    data-tooltip="Laat leeg doorlopen of kies de laatste maand."
+                    value={newRuleDraft.endMonth === null ? "" : String(newRuleDraft.endMonth)}
+                    onchange={(event) => (newRuleDraft = { ...newRuleDraft, endMonth: optionalMonthFromValue(inputValue(event)) })}
+                  >
+                    <option value="">Doorlopend</option>
+                    {#each selectedYear.months as month}
+                      <option value={String(month.month)}>{monthName(month.month)}</option>
+                    {/each}
+                  </select>
+                </label>
+                <button type="button" aria-label="Vaste regel toevoegen" title="Regel toevoegen" data-tooltip="Regel toevoegen" onclick={addRecurringRule}>
+                  <Plus size={16} />
+                  Regel toevoegen
+                </button>
+              </div>
+            </section>
+
+            <div class="rule-sheet">
+              <div class="rule-table-row sheet-head">
+                <span>Actief</span>
+                <span>Subcategorie</span>
+                <span>Partij</span>
+                <span>Omschrijving</span>
+                <span>Bedrag</span>
+                <span>Herhaling</span>
+                <span>Periode</span>
+                <span>Actie</span>
+              </div>
+              {#each sections as section}
+                {@const sectionRules = rulesForSection(section)}
+                <div class:income={section === "inkomsten"} class:fixed={section === "vaste_kosten"} class:variable={section === "variabele_kosten"} class="sheet-section-row">
+                  <strong>{SECTION_LABELS[section]}</strong>
+                  <span>{sectionRules.length} vaste regel{sectionRules.length === 1 ? "" : "s"}</span>
+                </div>
+                {#each sectionRules as rule}
+                  <article class:inactive-rule={!rule.active} class="rule-table-item">
+                    <div class="rule-table-row">
                     <label class="rule-switch">
                       <input
                         aria-label={`Regel actief: ${rule.description}`}
@@ -1715,13 +1926,14 @@
                         type="checkbox"
                         onchange={(event) => applyRecurringRuleChange(rule.id, { active: checkboxValue(event) })}
                       />
-                      <span>{rule.active ? "Actief" : "Uit"}</span>
+                      <span>{rule.active ? "Aan" : "Uit"}</span>
                     </label>
-                    <div class="rule-card-summary">
-                      <strong>{rule.description}</strong>
-                      <span>{SECTION_LABELS[rule.section]} / {ruleSubcategoryLabel(rule)} / {rulePartyLabel(rule)} / {ruleScheduleLabel(rule)}</span>
-                    </div>
+                    <span>{ruleSubcategoryLabel(rule)}</span>
+                    <span>{rulePartyLabel(rule)}</span>
+                    <strong>{rule.description}</strong>
                     <strong class="rule-card-amount">{formatMoneyCents(rule.amountCents ?? 0)}</strong>
+                    <span title={frequencyHelp(rule.frequency)}>{ruleFrequencyLabel(rule)}{frequencyNeedsPattern(rule.frequency) && rule.pattern ? `: ${rule.pattern}` : ""}</span>
+                    <span>{rulePeriodLabel(rule)}</span>
                     <button
                       class="rule-edit-toggle"
                       type="button"
@@ -1786,7 +1998,7 @@
                       </label>
                       <label>
                         <span>Herhaling</span>
-                        <select aria-label={`Herhaling voor regel ${rule.description}`} value={rule.frequency} onchange={(event) => updateRuleFrequency(rule, frequencyFromValue(inputValue(event)))}>
+                        <select aria-label={`Herhaling voor regel ${rule.description}`} title={frequencyHelp(rule.frequency)} data-tooltip={frequencyHelp(rule.frequency)} value={rule.frequency} onchange={(event) => updateRuleFrequency(rule, frequencyFromValue(inputValue(event)))}>
                           {#each recurringFrequencies as frequency}
                             <option value={frequency.value}>{frequency.label}</option>
                           {/each}
@@ -1799,6 +2011,8 @@
                             aria-label={`Patroon voor regel ${rule.description}`}
                             value={rule.pattern}
                             placeholder={patternPlaceholder(rule.frequency)}
+                            title={frequencyHelp(rule.frequency)}
+                            data-tooltip={frequencyHelp(rule.frequency)}
                             onblur={(event) => applyRecurringRuleChange(rule.id, { pattern: inputValue(event) })}
                           />
                         </label>
@@ -1824,132 +2038,24 @@
                   {/if}
                 </article>
               {/each}
+              {/each}
             </div>
-
-            <section class="new-rule-panel" aria-label="Nieuwe vaste regel">
-              <header>
-                <h4>Nieuwe maandelijkse regel</h4>
-                <p>Gebruik dit voor vaste posten zoals huur, pensioen, telecom of terugkerende cashregels.</p>
-              </header>
-              <div class="new-rule-grid">
-                <label>
-                  <span>Hoofdgroep</span>
-                  <select
-                    aria-label="Hoofdgroep voor nieuwe regel"
-                    value={newRuleDraft.section}
-                    onchange={(event) => {
-                      const section = sectionFromValue(inputValue(event));
-                      newRuleDraft = { ...newRuleDraft, section, subcategoryId: firstSubcategoryId(section) };
-                    }}
-                  >
-                    {#each sections as section}
-                      <option value={section}>{SECTION_LABELS[section]}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label>
-                  <span>Subcategorie</span>
-                  <select
-                    aria-label="Subcategorie voor nieuwe regel"
-                    value={newRuleDraft.subcategoryId ?? ""}
-                    onchange={(event) => (newRuleDraft = { ...newRuleDraft, subcategoryId: inputValue(event) || null })}
-                  >
-                    <option value="">Geen subcategorie</option>
-                    {#each subcategoriesFor(newRuleDraft.section) as subcategory}
-                      <option value={subcategory.id}>{subcategory.name}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label>
-                  <span>Partij</span>
-                  <input aria-label="Partij voor nieuwe regel" bind:value={newRuleDraft.party} placeholder="Bij wie?" onkeydown={maybeAddMonthlyRuleFromKey} />
-                </label>
-                <label>
-                  <span>Omschrijving</span>
-                  <input aria-label="Omschrijving voor nieuwe regel" bind:value={newRuleDraft.description} placeholder="Wat komt elke maand terug?" onkeydown={maybeAddMonthlyRuleFromKey} />
-                </label>
-                <label>
-                  <span>Bedrag</span>
-                  <input aria-label="Bedrag voor nieuwe regel" bind:value={newRuleDraft.amountText} inputmode="decimal" placeholder="0,00" onkeydown={maybeAddMonthlyRuleFromKey} />
-                </label>
-                <label>
-                  <span>Herhaling</span>
-                  <select
-                    aria-label="Herhaling voor nieuwe regel"
-                    value={newRuleDraft.frequency}
-                    onchange={(event) => {
-                      const frequency = frequencyFromValue(inputValue(event));
-                      newRuleDraft = { ...newRuleDraft, frequency, pattern: defaultPatternForFrequency(frequency, newRuleDraft.startMonth, newRuleDraft.pattern) };
-                    }}
-                  >
-                    {#each recurringFrequencies as frequency}
-                      <option value={frequency.value}>{frequency.label}</option>
-                    {/each}
-                  </select>
-                </label>
-                {#if frequencyNeedsPattern(newRuleDraft.frequency)}
-                  <label class="wide-rule-field">
-                    <span>{patternLabel(newRuleDraft.frequency)}</span>
-                    <input
-                      aria-label="Patroon voor nieuwe regel"
-                      bind:value={newRuleDraft.pattern}
-                      placeholder={patternPlaceholder(newRuleDraft.frequency)}
-                      onkeydown={maybeAddMonthlyRuleFromKey}
-                    />
-                  </label>
-                {/if}
-                <label>
-                  <span>Vanaf</span>
-                  <select
-                    aria-label="Startmaand voor nieuwe regel"
-                    value={String(newRuleDraft.startMonth)}
-                    onchange={(event) => {
-                      const startMonth = monthFromValue(inputValue(event), newRuleDraft.startMonth);
-                      newRuleDraft = {
-                        ...newRuleDraft,
-                        startMonth,
-                        pattern: defaultPatternForFrequency(newRuleDraft.frequency, startMonth, newRuleDraft.pattern),
-                      };
-                    }}
-                  >
-                    {#each selectedYear.months as month}
-                      <option value={String(month.month)}>{monthName(month.month)}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label>
-                  <span>Tot en met</span>
-                  <select
-                    aria-label="Eindmaand voor nieuwe regel"
-                    value={newRuleDraft.endMonth === null ? "" : String(newRuleDraft.endMonth)}
-                    onchange={(event) => (newRuleDraft = { ...newRuleDraft, endMonth: optionalMonthFromValue(inputValue(event)) })}
-                  >
-                    <option value="">Doorlopend</option>
-                    {#each selectedYear.months as month}
-                      <option value={String(month.month)}>{monthName(month.month)}</option>
-                    {/each}
-                  </select>
-                </label>
-                <button type="button" aria-label="Vaste regel toevoegen" title="Regel toevoegen" data-tooltip="Regel toevoegen" onclick={addRecurringRule}>
-                  <Plus size={16} />
-                  Regel toevoegen
-                </button>
-              </div>
-            </section>
           </section>
         {/if}
       {:else}
-        <header>
-          <h2>Back-up</h2>
-          <p>Herstel, export en wijzigingen staan samen, zodat onderhoud niet meer door het jaarblad loopt.</p>
+        <header class="menu-heading">
+          <div>
+            <h2>Back-up</h2>
+            <p>Herstel, export en wijzigingen staan samen, zonder het jaarblad te verstoren.</p>
+          </div>
+          <nav class="settings-tabs" aria-label="Back-up onderdelen">
+            <button class:active={activeBackupTab === "backup"} type="button" aria-pressed={activeBackupTab === "backup"} onclick={() => (activeBackupTab = "backup")}>{backupTabLabels.backup}</button>
+            <button class:active={activeBackupTab === "changes"} type="button" aria-pressed={activeBackupTab === "changes"} onclick={() => (activeBackupTab = "changes")}>{backupTabLabels.changes}</button>
+          </nav>
         </header>
-        <nav class="settings-tabs" aria-label="Back-up onderdelen">
-          <button class:active={activeBackupTab === "backup"} type="button" aria-pressed={activeBackupTab === "backup"} onclick={() => (activeBackupTab = "backup")}>{backupTabLabels.backup}</button>
-          <button class:active={activeBackupTab === "changes"} type="button" aria-pressed={activeBackupTab === "changes"} onclick={() => (activeBackupTab = "changes")}>{backupTabLabels.changes}</button>
-        </nav>
 
         {#if activeBackupTab === "backup"}
-          <section class="settings-block" aria-label="Back-up en herstel">
+          <section class="settings-block workbook-block" aria-label="Back-up en herstel">
             <header>
               <div>
                 <h3>Back-up en herstel</h3>
@@ -1959,57 +2065,71 @@
                 <span class="settings-message" role="status">{safetyMessage}</span>
               {/if}
             </header>
-            <div class="backup-action-list">
-              <article class="backup-action-row">
-                <FileCheck size={18} />
-                <div>
+            <div class="backup-sheet">
+              <div class="backup-row sheet-head">
+                <span>Onderdeel</span>
+                <span>Status</span>
+                <span>Uitleg</span>
+                <span>Actie</span>
+              </div>
+              <article class="backup-row">
+                <span class="backup-topic">
+                  <FileCheck size={18} />
                   <strong>Gegevenscontrole</strong>
-                  <span>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</span>
-                </div>
+                </span>
+                <span>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</span>
+                <span>Controleert of het boek past bij het gegevensmodel.</span>
                 <button type="button" class="inline-action" onclick={runSafetyCheck}>Controle uitvoeren</button>
               </article>
-              <article class="backup-action-row">
-                <Download size={18} />
-                <div>
+              <article class="backup-row">
+                <span class="backup-topic">
+                  <Download size={18} />
                   <strong>Back-up maken</strong>
-                  <span>Download een leesbaar JSON-bestand van de huidige modus.</span>
-                </div>
+                </span>
+                <span>{appMode === "demo" ? "Leermodus" : "Productie"}</span>
+                <span>Download een leesbaar JSON-bestand van de huidige modus.</span>
                 <button type="button" class="inline-action" onclick={exportBackup}>Maak back-up</button>
               </article>
-              <article class="backup-action-row">
-                <Upload size={18} />
-                <div>
+              <article class="backup-row">
+                <span class="backup-topic">
+                  <Upload size={18} />
                   <strong>Back-up terugzetten</strong>
-                  <span>Kies een Abacus JSON-bestand. De app controleert het bestand eerst.</span>
-                </div>
+                </span>
+                <span>JSON-bestand</span>
+                <span>Kies een Abacus JSON-bestand. De app controleert het bestand eerst.</span>
                 <button type="button" class="inline-action" onclick={chooseRestoreFile}>Kies bestand</button>
                 <input bind:this={restoreInput} class="hidden-file-input" type="file" accept="application/json,.json" onchange={restoreBackup} />
               </article>
-              <article class="backup-action-row danger-row">
-                <Shield size={18} />
-                <div>
+              <article class="backup-row danger-row">
+                <span class="backup-topic">
+                  <Shield size={18} />
                   <strong>Opnieuw starten</strong>
-                  <span>Vervang alleen de huidige modus door een verse start. Maak eerst een back-up als je twijfelt.</span>
-                </div>
+                </span>
+                <span>Huidige modus</span>
+                <span>Vervang alleen de huidige modus door een verse start. Maak eerst een back-up als je twijfelt.</span>
                 <button type="button" class="inline-action danger-action" onclick={resetCurrentMode}>Start opnieuw</button>
               </article>
-              <article class="backup-action-row passive">
-                <CheckCircle2 size={18} />
-                <div>
+              <article class="backup-row passive">
+                <span class="backup-topic">
+                  <CheckCircle2 size={18} />
                   <strong>Lokale opslag</strong>
-                  <span>{appMode === "demo" ? "Leermodus gebruikt eigen lokale opslag." : "Echte modus gebruikt eigen lokale opslag."} Status: {saveStatus.toLowerCase()}.</span>
-                </div>
+                </span>
+                <span>{saveStatus}</span>
+                <span>{appMode === "demo" ? "Leermodus gebruikt eigen lokale opslag." : "Echte modus gebruikt eigen lokale opslag."}</span>
+                <span class="muted-action">Geen actie</span>
               </article>
-              <article class="backup-action-row passive">
-                <Lock size={18} />
-                <div>
+              <article class="backup-row passive">
+                <span class="backup-topic">
+                  <Lock size={18} />
                   <strong>Gescheiden modi</strong>
-                  <span>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</span>
-                </div>
+                </span>
+                <span>Beschermd</span>
+                <span>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</span>
+                <span class="muted-action">Beschermd</span>
               </article>
             </div>
           </section>
-          <section class="settings-block" aria-label="Controlelijst veiligheid">
+          <section class="settings-block workbook-block" aria-label="Controlelijst veiligheid">
             <header>
               <div>
                 <h3>Controlelijst</h3>
@@ -2030,7 +2150,7 @@
             {/if}
           </section>
         {:else}
-          <section class="settings-block" aria-label="Wijzigingen">
+          <section class="settings-block workbook-block" aria-label="Wijzigingen">
             <header>
               <div>
                 <h3>Wijzigingen</h3>
@@ -2050,7 +2170,13 @@
                 <span>Nog geen wijzigingen geregistreerd sinds deze functie actief is.</span>
               </div>
             {:else}
-              <div class="event-list">
+              <div class="event-list sheet-list">
+                <div class="event-row sheet-head">
+                  <span>Tijd</span>
+                  <span>Type</span>
+                  <span>Omschrijving</span>
+                  <span>Modus</span>
+                </div>
                 {#each visibleHistoryEvents as event}
                   <article class="event-row">
                     <span>{formatHistoryTime(event.timestamp)}</span>
@@ -2062,7 +2188,7 @@
               </div>
             {/if}
           </section>
-          <section class="settings-block" aria-label="Recente boekingen">
+          <section class="settings-block workbook-block" aria-label="Recente boekingen">
             <header>
               <div>
                 <h3>Recente boekingen</h3>
@@ -2075,7 +2201,16 @@
                 <span>Er zijn nog geen boekingen in dit jaar.</span>
               </div>
             {:else}
-              <div class="history-list">
+              <div class="history-list sheet-list">
+                <div class="history-row sheet-head">
+                  <span>Datum</span>
+                  <span>Maand</span>
+                  <span>Groep</span>
+                  <span>Partij</span>
+                  <span>Omschrijving</span>
+                  <span>Bedrag</span>
+                  <span>Type</span>
+                </div>
                 {#each recentEntries as item}
                   <article class="history-row">
                     <span>{formatEntryDate(item.entry.date)}</span>
@@ -2090,7 +2225,7 @@
               </div>
             {/if}
           </section>
-          <section class="settings-block" aria-label="Herstelstappen">
+          <section class="settings-block workbook-block" aria-label="Herstelstappen">
             <header>
               <div>
                 <h3>Herstelstappen</h3>

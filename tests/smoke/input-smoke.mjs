@@ -1008,6 +1008,8 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await page.getByRole("button", { name: "Instellingen" }).click();
   await expectVisibleText(page, "Instellingen");
   await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
+  await expectMenuWorkbookShell(page, "Instellingen");
+  await captureScreenshot(page, "17-settings-categories.png");
   for (const removedLabel of ["Bewerken", "Veiligheid", "Historiek"]) {
     if ((await page.locator(".toolbar").getByRole("button", { name: removedLabel }).count()) > 0) {
       throw new Error(`${removedLabel} staat nog als hoofdmenu.`);
@@ -1016,13 +1018,19 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await expectVisibleText(page, "Categorieen");
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await expectVisibleText(page, "Vaste regels");
+  await expectMenuWorkbookShell(page, "Vaste regels");
+  await captureScreenshot(page, "18-settings-rules.png");
   await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
+  await expectMenuWorkbookShell(page, "Gegevens");
+  await captureScreenshot(page, "19-settings-data.png");
   await page.getByRole("button", { name: "Categorieen" }).click();
   await expectVisibleText(page, "Beheer de subcategorieen");
   await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
   await page.getByRole("button", { name: "Back-up en herstel" }).click();
   await expectVisibleText(page, "Back-up en herstel");
+  await expectMenuWorkbookShell(page, "Back-up");
+  await captureScreenshot(page, "20-backup-sheet.png");
   await expectVisibleText(page, "Gegevenscontrole");
   await expectVisibleText(page, "Controlelijst");
   await expectVisibleText(page, "Back-up maken");
@@ -1039,8 +1047,43 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await expectVisibleText(page, "Recente boekingen");
   await expectVisibleText(page, "Wijzigingen");
   await expectVisibleText(page, "Vaste regel");
+  await expectMenuWorkbookShell(page, "Wijzigingen");
+  await captureScreenshot(page, "21-changes-sheet.png");
   await page.getByRole("button", { name: "Jaarblad" }).click();
   await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
+}
+
+async function expectMenuWorkbookShell(page, label) {
+  const issue = await page.evaluate((label) => {
+    const menuPage = document.querySelector(".menu-page");
+    const heading = document.querySelector(".menu-heading");
+    const tabs = heading?.querySelector(".settings-tabs");
+    const visibleOldCards = Array.from(document.querySelectorAll(".category-settings-grid, .rule-card-list, .new-rule-panel")).filter((element) => {
+      if (!(element instanceof HTMLElement)) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    const workbook = document.querySelector(".workbook-block");
+    const sheet = document.querySelector(".category-sheet, .rule-sheet, .data-sheet, .backup-sheet, .overview-table, .history-list, .event-list");
+    if (!(menuPage instanceof HTMLElement)) return `${label}: menu ontbreekt.`;
+    if (!(heading instanceof HTMLElement)) return `${label}: compacte menukop ontbreekt.`;
+    if (!(workbook instanceof HTMLElement) && label !== "Overzicht") return `${label}: werkbladblok ontbreekt.`;
+    if (!(sheet instanceof HTMLElement)) return `${label}: grid/werkblad ontbreekt.`;
+    if (visibleOldCards.length > 0) return `${label}: oude kaartlayout is nog zichtbaar.`;
+
+    if (tabs instanceof HTMLElement) {
+      const tabButtons = Array.from(tabs.querySelectorAll("button"));
+      if (tabs.getBoundingClientRect().height > 40) return `${label}: tabstrip is te hoog.`;
+      const tops = tabButtons.map((button) => Math.round(button.getBoundingClientRect().top));
+      if (Math.max(...tops) - Math.min(...tops) > 3) return `${label}: tabs staan niet horizontaal.`;
+    }
+
+    const headRows = Array.from(document.querySelectorAll(".sheet-head, .overview-head"));
+    if (headRows.length === 0) return `${label}: kolomkoppen ontbreken.`;
+    return "";
+  }, label);
+
+  if (issue) throw new Error(`Menu-werkbladcontrole faalde: ${issue}`);
 }
 
 async function expectNoPageHorizontalOverflow(page, label) {
@@ -1301,7 +1344,7 @@ async function expectCategorySettingsManagement(page) {
   await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").fill("Apotheek Extra");
   await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").press("Enter");
   await expectVisibleText(page, "Apotheek Extra toegevoegd");
-  await expectVisibleText(page, "0 boekingen");
+  await expectCategoryUsage(page, "Apotheek Extra", 0, 0);
 
   await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 6);
@@ -1319,13 +1362,30 @@ async function expectCategorySettingsManagement(page) {
   await page.getByLabel("Naam van subcategorie Apotheek Extra").fill("Apotheek");
   await page.keyboard.press("Tab");
   await expectVisibleText(page, "Apotheek bewaard");
-  await expectVisibleText(page, "1 boeking");
+  await expectCategoryUsage(page, "Apotheek", 1, 0);
 
   await page.reload({ waitUntil: "networkidle" });
   await expectVisibleText(page, "Jaarbegroting 2026");
   await navigateToMonth(page, 6);
   await expectVisibleText(page, "Apotheek");
   await expectVisibleText(page, "Nieuwe zalf");
+}
+
+async function expectCategoryUsage(page, name, expectedEntries, expectedRules) {
+  const issue = await page.evaluate(({ name, expectedEntries, expectedRules }) => {
+    const input = Array.from(document.querySelectorAll(".category-row input")).find((element) => element instanceof HTMLInputElement && element.value === name);
+    const row = input?.closest(".category-row");
+    if (!(row instanceof HTMLElement)) return `${name} staat niet in het categorieenblad.`;
+    const cells = Array.from(row.children);
+    const entries = Number(cells[1]?.textContent?.trim());
+    const rules = Number(cells[2]?.textContent?.trim());
+    if (entries !== expectedEntries || rules !== expectedRules) {
+      return `${name} toont ${entries}/${rules}, verwacht ${expectedEntries}/${expectedRules}.`;
+    }
+    return "";
+  }, { name, expectedEntries, expectedRules });
+
+  if (issue) throw new Error(`Categoriegebruikcontrole faalde: ${issue}`);
 }
 
 async function expectRecurringRuleSettings(page) {
