@@ -1302,10 +1302,30 @@ h1 {
     0 0 30px color-mix(in srgb, var(--month-sun) 24%, transparent);
 }
 
+.month-card.locked-card {
+  border-color: color-mix(in srgb, var(--month-accent) 32%, rgba(80, 70, 48, 0.24));
+  background:
+    linear-gradient(135deg, rgba(245, 241, 229, 0.28), rgba(255, 253, 247, 0.92)),
+    rgba(255, 253, 247, 0.9);
+}
+
+.month-card.locked-card .month-header {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--month-accent-mist) 76%, #f5f0df), rgba(255, 253, 247, 0.9) 52%, rgba(245, 241, 229, 0.78)),
+    rgba(255, 253, 247, 0.74);
+}
+
 .evening .month-card {
   background: rgba(19, 37, 30, 0.94);
   border-color: rgba(219, 190, 118, 0.22);
   box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+}
+
+.evening .month-card.locked-card {
+  border-color: rgba(219, 190, 118, 0.3);
+  background:
+    linear-gradient(135deg, rgba(244, 232, 190, 0.05), rgba(19, 37, 30, 0.94)),
+    rgba(19, 37, 30, 0.94);
 }
 
 .month-header {
@@ -1338,6 +1358,16 @@ h1 {
 .month-tools button:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.subcategory-add:disabled,
+.entry-row button:disabled,
+.new-entry-panel button:disabled,
+.delete-request-row:disabled,
+.delete-confirm-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  box-shadow: none;
 }
 
 .month-header img {
@@ -1400,6 +1430,33 @@ h1 {
 .month-ledger {
   min-height: 0;
   overflow: visible;
+}
+
+.locked-month-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px calc(var(--ledger-pad-right) + 1px) 5px var(--ledger-pad);
+  border-bottom: 1px solid rgba(112, 92, 58, 0.11);
+  color: #5f6048;
+  background: rgba(238, 231, 208, 0.44);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.locked-month-note svg {
+  flex: 0 0 auto;
+  color: #657044;
+}
+
+.evening .locked-month-note {
+  color: #dfd2a7;
+  border-bottom-color: rgba(219, 190, 118, 0.14);
+  background: rgba(244, 232, 190, 0.08);
+}
+
+.evening .locked-month-note svg {
+  color: #d7c47e;
 }
 
 .budget-section {

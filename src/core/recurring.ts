@@ -56,11 +56,13 @@ export function syncRecurringEntriesForYear(book: Book, targetYear: number): voi
 
   const rulePrefixes = book.recurringRules.map((rule) => `${rule.id}-`);
   for (const month of year.months) {
+    if (month.locked) continue;
     month.entries = month.entries.filter((entry) => !rulePrefixes.some((prefix) => entry.id.startsWith(prefix)));
   }
 
   book.recurringRules.forEach((rule, ruleIndex) => {
     for (const month of year.months) {
+      if (month.locked) continue;
       for (const date of datesFor(rule, year.year, month.month)) {
         month.entries.push(entryFromRule(rule, date, ruleIndex));
       }

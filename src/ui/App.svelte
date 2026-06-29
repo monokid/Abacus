@@ -25,6 +25,7 @@
     ShoppingBasket,
     Sun,
     Trash2,
+    Unlock,
     Upload,
     X,
   } from "@lucide/svelte";
@@ -898,7 +899,50 @@
     return expandedDraftKey === key || hasDraftContent(draft);
   }
 
+  function monthByNumber(monthNumber: number): BudgetMonth | null {
+    return selectedYear.months.find((month) => month.month === monthNumber) ?? null;
+  }
+
+  function monthForEntry(entryId: string): BudgetMonth | null {
+    for (const month of selectedYear.months) {
+      if (month.entries.some((entry) => entry.id === entryId)) return month;
+    }
+
+    return null;
+  }
+
+  function lockedMonthMessage(monthNumber: number): void {
+    undoMessage = `${monthName(monthNumber)} is vergrendeld. Ontgrendel de maand om te wijzigen.`;
+  }
+
+  function isMonthLocked(monthNumber: number): boolean {
+    return monthByNumber(monthNumber)?.locked ?? false;
+  }
+
+  function toggleMonthLock(month: BudgetMonth): void {
+    const willLock = !month.locked;
+    rememberUndo(willLock ? "Maand vergrendeld" : "Maand ontgrendeld", `${monthName(month.month)} ${willLock ? "vergrendeld" : "ontgrendeld"}.`);
+    month.locked = willLock;
+
+    if (willLock) {
+      if (expandedDraftKey?.startsWith(`${month.month}:`)) expandedDraftKey = null;
+      if (editingEntryId && month.entries.some((entry) => entry.id === editingEntryId)) cancelEdit();
+      if (notePopup?.kind === "draft" && notePopup.monthNumber === month.month) closeNotePopup();
+      if ((notePopup?.kind === "edit" || notePopup?.kind === "entry") && month.entries.some((entry) => entry.id === notePopup.entryId)) closeNotePopup();
+    }
+
+    centerMonth(month.month);
+    undoMessage = `${monthName(month.month)} is ${willLock ? "vergrendeld" : "ontgrendeld"}.`;
+    recordHistory(willLock ? "Maand vergrendeld" : "Maand ontgrendeld", `${monthName(month.month)} is ${willLock ? "vergrendeld" : "ontgrendeld"}.`);
+  }
+
   function openDraft(monthNumber: number, section: Section, subcategoryId: string): void {
+    if (isMonthLocked(monthNumber)) {
+      centerMonth(monthNumber);
+      lockedMonthMessage(monthNumber);
+      return;
+    }
+
     const key = draftKey(monthNumber, section, subcategoryId);
     expandedDraftKey = key;
     centerMonth(monthNumber);
@@ -910,6 +954,11 @@
   }
 
   function commitDraft(month: BudgetMonth, section: Section, subcategoryId: string): void {
+    if (month.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     const key = draftKey(month.month, section, subcategoryId);
     const draft = drafts[key];
     if (!draft) return;
@@ -961,6 +1010,12 @@
   }
 
   function startEdit(month: BudgetMonth, entry: Entry): void {
+    if (month.locked) {
+      centerMonth(month.month);
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     centerMonth(month.month);
     editingEntryId = entry.id;
     deleteConfirmEntryId = null;
@@ -983,6 +1038,12 @@
   }
 
   function saveEdit(entry: Entry): void {
+    const month = monthForEntry(entry.id);
+    if (month?.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     const amountText = editDraft.amountText.trim();
     if (!isValidAmountText(amountText)) {
       editDraft.amountError = "Controleer het bedrag.";
@@ -1009,6 +1070,12 @@
   }
 
   function requestDelete(entry: Entry): void {
+    const month = monthForEntry(entry.id);
+    if (month?.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     deleteConfirmEntryId = entry.id;
   }
 
@@ -1017,6 +1084,11 @@
   }
 
   function deleteEntry(month: BudgetMonth, entry: Entry): void {
+    if (month.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     const index = month.entries.findIndex((item) => item.id === entry.id);
     if (index < 0) return;
 
@@ -1131,6 +1203,12 @@
   }
 
   function openDraftNote(monthNumber: number, section: Section, subcategory: Subcategory): void {
+    if (isMonthLocked(monthNumber)) {
+      centerMonth(monthNumber);
+      lockedMonthMessage(monthNumber);
+      return;
+    }
+
     const draft = draftFor(monthNumber, section, subcategory.id);
     noteText = draft.comment;
     noteInitialText = draft.comment;
@@ -1146,6 +1224,12 @@
   }
 
   function openEditNote(entry: Entry): void {
+    const month = monthForEntry(entry.id);
+    if (month?.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     noteText = editDraft.comment;
     noteInitialText = editDraft.comment;
     noteCancelWarning = false;
@@ -1154,6 +1238,12 @@
   }
 
   function openEntryNote(entry: Entry): void {
+    const month = monthForEntry(entry.id);
+    if (month?.locked) {
+      lockedMonthMessage(month.month);
+      return;
+    }
+
     noteText = entry.comment;
     noteInitialText = entry.comment;
     noteCancelWarning = false;
@@ -1174,6 +1264,12 @@
       editDraft.comment = comment;
     } else if (notePopup?.kind === "entry") {
       const entry = findEntry(notePopup.entryId);
+      const month = entry ? monthForEntry(entry.id) : null;
+      if (month?.locked) {
+        lockedMonthMessage(month.month);
+        closeNotePopup();
+        return;
+      }
       if (entry && comment !== noteInitialText.trim()) {
         rememberUndo("Melding bewaard", entry.description);
         entry.comment = comment;
@@ -1857,6 +1953,7 @@
       <div
         class:active-card={activeMonth === month.month}
         class:current-month={currentMonthInSelectedYear === month.month}
+        class:locked-card={month.locked}
         class="month-card"
         aria-label={monthName(month.month)}
         aria-pressed={activeMonth === month.month}
@@ -1885,7 +1982,19 @@
             </button>
             <button type="button" aria-label="Controle" title="Controle" data-tooltip="Controle"><CheckCircle2 size={18} /></button>
             <button type="button" aria-label="Opmerkingen" title="Opmerkingen" data-tooltip="Opmerkingen"><MessageCircle size={18} /></button>
-            <button type="button" aria-label="Maand afsluiten" title="Maand afsluiten" data-tooltip="Maand afsluiten"><Lock size={18} /></button>
+            <button
+              type="button"
+              aria-label={month.locked ? "Maand ontgrendelen" : "Maand afsluiten"}
+              title={month.locked ? "Maand ontgrendelen" : "Maand afsluiten"}
+              data-tooltip={month.locked ? "Maand ontgrendelen" : "Maand afsluiten"}
+              onclick={() => toggleMonthLock(month)}
+            >
+              {#if month.locked}
+                <Unlock size={18} />
+              {:else}
+                <Lock size={18} />
+              {/if}
+            </button>
           </div>
         </header>
 
@@ -1895,6 +2004,13 @@
           <span class="amount-head">Bedrag</span>
           <span class="action-head">Actie</span>
         </div>
+
+        {#if month.locked}
+          <div class="locked-month-note" role="status">
+            <Lock size={14} aria-hidden="true" />
+            <span>{monthName(month.month)} is vergrendeld. Ontgrendel om te wijzigen.</span>
+          </div>
+        {/if}
 
         <div class="month-ledger">
           {#each sections as section}
@@ -1931,8 +2047,9 @@
                     class="subcategory-add"
                     type="button"
                     aria-label={`Invoer openen voor ${subcategory.name}`}
-                    title={`Invoer openen voor ${subcategory.name}`}
-                    data-tooltip={`Invoer openen voor ${subcategory.name}`}
+                    title={month.locked ? `${monthName(month.month)} is vergrendeld` : `Invoer openen voor ${subcategory.name}`}
+                    data-tooltip={month.locked ? "Maand vergrendeld" : `Invoer openen voor ${subcategory.name}`}
+                    disabled={month.locked}
                     onclick={() => openDraft(month.month, section, subcategory.id)}
                   >
                     <Plus size={15} />
@@ -1942,7 +2059,7 @@
 
               {@const draft = draftFor(month.month, section, subcategory.id)}
               {@const key = draftKey(month.month, section, subcategory.id)}
-              {#if isDraftVisible(key, draft)}
+              {#if !month.locked && isDraftVisible(key, draft)}
                 <div
                   class:has-error={Boolean(draft.amountError)}
                   class:has-note={Boolean(draft.comment.trim())}
@@ -2042,6 +2159,7 @@
                           title="Uitgebreide melding"
                           data-tooltip="Uitgebreide melding"
                           onpointerdown={(event) => event.preventDefault()}
+                          disabled={month.locked}
                           onclick={() => openEditNote(entry)}
                         >
                           <MessageCircle size={14} />
@@ -2063,18 +2181,18 @@
                         {/if}
                       </label>
                       <span class="row-actions actions-cell">
-                        <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                        <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" disabled={month.locked} onclick={() => saveEdit(entry)}><Check size={15} /></button>
                         <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                       </span>
                     </div>
                     {#if deleteConfirmEntryId === entry.id}
                       <div class="delete-confirm-row" data-testid={`delete-confirm-${entry.id}`}>
                         <span>Deze regel verwijderen?</span>
-                        <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
+                        <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" disabled={month.locked} onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
                         <button type="button" aria-label="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
                       </div>
                     {:else}
-                      <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title="Verwijderen voorbereiden" data-tooltip="Verwijderen voorbereiden" onclick={() => requestDelete(entry)}>
+                      <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Verwijderen voorbereiden"} data-tooltip={month.locked ? "Maand vergrendeld" : "Verwijderen voorbereiden"} disabled={month.locked} onclick={() => requestDelete(entry)}>
                         <Trash2 size={15} />
                         Verwijderen
                       </button>
@@ -2085,12 +2203,12 @@
                       <span class:has-note={Boolean(entry.comment)} class="description-text" title={entry.description}>
                         <span>{entry.description}</span>
                         {#if entry.comment}
-                          <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
+                          <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Melding bekijken"} data-tooltip={month.locked ? "Maand vergrendeld" : "Melding bekijken"} disabled={month.locked} onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
                         {/if}
                       </span>
                       <strong class="amount-cell">{formatDecimalCents(entry.amountCents)}</strong>
                       <span class="row-actions actions-cell">
-                        <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                        <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Regel bewerken"} data-tooltip={month.locked ? "Maand vergrendeld" : "Regel bewerken"} disabled={month.locked} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                       </span>
                     </div>
                   {/if}
@@ -2128,6 +2246,7 @@
                       title="Uitgebreide melding"
                       data-tooltip="Uitgebreide melding"
                       onpointerdown={(event) => event.preventDefault()}
+                      disabled={month.locked}
                       onclick={() => openEditNote(entry)}
                     >
                       <MessageCircle size={14} />
@@ -2149,18 +2268,18 @@
                     {/if}
                   </label>
                   <span class="row-actions actions-cell">
-                    <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" onclick={() => saveEdit(entry)}><Check size={15} /></button>
+                    <button class="save-row" type="button" aria-label="Wijziging bewaren" title="Wijziging bewaren" data-tooltip="Wijziging bewaren" disabled={month.locked} onclick={() => saveEdit(entry)}><Check size={15} /></button>
                     <button type="button" aria-label="Bewerken annuleren" title="Bewerken annuleren" data-tooltip="Bewerken annuleren" onclick={cancelEdit}><X size={15} /></button>
                   </span>
                 </div>
                 {#if deleteConfirmEntryId === entry.id}
                   <div class="delete-confirm-row" data-testid={`delete-confirm-${entry.id}`}>
                     <span>Deze regel verwijderen?</span>
-                    <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" title="Verwijderen bevestigen" data-tooltip="Verwijderen bevestigen" onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
+                    <button class="danger-row" type="button" aria-label="Verwijderen bevestigen" title="Verwijderen bevestigen" data-tooltip="Verwijderen bevestigen" disabled={month.locked} onclick={() => deleteEntry(month, entry)}>Verwijderen</button>
                     <button type="button" aria-label="Verwijderen annuleren" title="Verwijderen annuleren" data-tooltip="Verwijderen annuleren" onclick={cancelDelete}>Annuleren</button>
                   </div>
                 {:else}
-                    <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title="Verwijderen voorbereiden" data-tooltip="Verwijderen voorbereiden" onclick={() => requestDelete(entry)}>
+                    <button class="delete-request-row" type="button" aria-label={`Verwijderen voorbereiden: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Verwijderen voorbereiden"} data-tooltip={month.locked ? "Maand vergrendeld" : "Verwijderen voorbereiden"} disabled={month.locked} onclick={() => requestDelete(entry)}>
                     <Trash2 size={15} />
                     Verwijderen
                   </button>
@@ -2171,12 +2290,12 @@
                   <span class:has-note={Boolean(entry.comment)} class="description-text" title={entry.description}>
                     <span>{entry.description}</span>
                     {#if entry.comment}
-                      <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title="Melding bekijken" data-tooltip="Melding bekijken" onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
+                      <button class="note-indicator" type="button" aria-label={`Melding bekijken: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Melding bekijken"} data-tooltip={month.locked ? "Maand vergrendeld" : "Melding bekijken"} disabled={month.locked} onclick={() => openEntryNote(entry)}><MessageCircle size={12} /></button>
                     {/if}
                   </span>
                   <strong class="amount-cell">{formatDecimalCents(entry.amountCents)}</strong>
                   <span class="row-actions actions-cell">
-                    <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title="Regel bewerken" data-tooltip="Regel bewerken" onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
+                    <button type="button" aria-label={`Regel bewerken: ${entry.description}`} title={month.locked ? `${monthName(month.month)} is vergrendeld` : "Regel bewerken"} data-tooltip={month.locked ? "Maand vergrendeld" : "Regel bewerken"} disabled={month.locked} onclick={() => startEdit(month, entry)}><Pencil size={15} /></button>
                   </span>
                 </div>
               {/if}

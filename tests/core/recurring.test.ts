@@ -93,6 +93,32 @@ describe("syncRecurringEntriesForBook", () => {
     expect(synced?.amountCents).toBe(830_00);
     expect(january.entries.find((entry) => entry.id === "manual-1")?.description).toBe("Blijft staan");
   });
+
+  it("leaves locked months unchanged when recurring rules are reapplied", () => {
+    const book = createEmptyBook(2026);
+    const january = book.years[0]?.months[0];
+    if (!january) throw new Error("Missing January");
+
+    book.recurringRules.push(rule({
+      id: "rule-pensioen",
+      section: "inkomsten",
+      subcategoryId: "sub-ink-pensioen",
+      party: "Pensioendienst",
+      description: "Pensioen",
+      amountCents: 2_332_59,
+      endYear: 2026,
+      endMonth: 12,
+    }));
+
+    syncRecurringEntriesForBook(book);
+    january.locked = true;
+    const lockedEntries = january.entries.map((entry) => ({ ...entry }));
+
+    book.recurringRules[0] = { ...book.recurringRules[0]!, description: "Pensioen aangepast", amountCents: 2_400_00 };
+    syncRecurringEntriesForBook(book);
+
+    expect(january.entries).toEqual(lockedEntries);
+  });
 });
 
 function rule(overrides: Partial<RecurringRule>): RecurringRule {

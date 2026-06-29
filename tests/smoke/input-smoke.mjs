@@ -55,6 +55,7 @@ try {
   await expectModeSwitchSeparatesDemo(page);
   await expectCategorySettingsManagement(page);
   await expectRecurringRuleSettings(page);
+  await expectMonthLockBlocksEditing(page);
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
   await expectDistinctSectionIcons(page);
@@ -414,6 +415,37 @@ async function openDraft(page, monthNumber, section, subcategoryId, label) {
 
   await page.locator(`[data-month-card="${monthNumber}"]`).getByLabel(`Invoer openen voor ${label}`).click();
   await draft.waitFor({ state: "visible", timeout: 5_000 });
+}
+
+async function expectMonthLockBlocksEditing(page) {
+  await page.locator(".app-header").getByRole("button", { name: "Jaar", exact: true }).click();
+  await navigateToMonth(page, 8);
+  await expectActiveMonthVisible(page, 8);
+
+  const card = page.locator('[data-month-card="8"]');
+  await card.getByLabel("Maand afsluiten").click();
+  await expectMonthCardVisibleText(page, 8, "Augustus is vergrendeld");
+  await captureScreenshot(page, "16-month-locked.png");
+
+  const addButton = card.getByLabel("Invoer openen voor Pensioen").first();
+  if (!(await addButton.isDisabled())) {
+    throw new Error("Maandvergrendeling faalde: plusknop bleef actief.");
+  }
+
+  const editButton = card.getByLabel(/Regel bewerken:/).first();
+  if ((await editButton.count()) > 0 && !(await editButton.isDisabled())) {
+    throw new Error("Maandvergrendeling faalde: bewerkknop bleef actief.");
+  }
+
+  const draftCountWhileLocked = await page.locator('[data-testid="draft-8-inkomsten-sub-ink-pensioen"]').count();
+  if (draftCountWhileLocked > 0) {
+    throw new Error("Maandvergrendeling faalde: invoerrij bleef zichtbaar in een vergrendelde maand.");
+  }
+
+  await card.getByLabel("Maand ontgrendelen").click();
+  await openDraft(page, 8, "inkomsten", "sub-ink-pensioen", "Pensioen");
+  await expectMonthCardVisibleText(page, 8, "Omschrijving");
+  await page.keyboard.press("Escape");
 }
 
 async function expectIncomeDraftTabOrder(page, monthNumber) {
