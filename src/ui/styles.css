@@ -522,6 +522,53 @@ h1 {
   text-align: right;
 }
 
+.overview-table {
+  display: grid;
+  gap: 4px;
+}
+
+.overview-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) repeat(5, minmax(96px, auto)) minmax(82px, auto);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(105, 87, 53, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 253, 247, 0.58);
+  padding: 7px 9px;
+}
+
+.overview-head {
+  color: #807259;
+  background: rgba(245, 241, 229, 0.72);
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.overview-row strong,
+.overview-row span,
+.overview-row small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-row span:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-row small {
+  color: #536047;
+  text-align: right;
+}
+
+.overview-row .negative {
+  color: #9a3f38;
+}
+
 .history-row strong:last-of-type {
   color: #0f4f31;
   text-align: right;
@@ -1432,7 +1479,8 @@ h1 {
   overflow: visible;
 }
 
-.locked-month-note {
+.locked-month-note,
+.month-status-note {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1444,18 +1492,30 @@ h1 {
   font-weight: 650;
 }
 
-.locked-month-note svg {
+.month-status-note {
+  color: #355f40;
+  background: rgba(232, 240, 222, 0.52);
+}
+
+.locked-month-note svg,
+.month-status-note svg {
   flex: 0 0 auto;
   color: #657044;
 }
 
-.evening .locked-month-note {
+.month-status-note svg {
+  color: #355f40;
+}
+
+.evening .locked-month-note,
+.evening .month-status-note {
   color: #dfd2a7;
   border-bottom-color: rgba(219, 190, 118, 0.14);
   background: rgba(244, 232, 190, 0.08);
 }
 
-.evening .locked-month-note svg {
+.evening .locked-month-note svg,
+.evening .month-status-note svg {
   color: #d7c47e;
 }
 
@@ -2657,5 +2717,32 @@ h1 {
 
   .note-popup {
     width: min(94vw, 420px);
+  }
+}
+
+@media print {
+  .app-header,
+  .month-tabs,
+  .board,
+  .status-bar,
+  .history-actions,
+  .settings-tabs {
+    display: none !important;
+  }
+
+  main,
+  .menu-page,
+  .settings-block,
+  .menu-card {
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .menu-page {
+    padding: 0;
+  }
+
+  .overview-row {
+    break-inside: avoid;
   }
 }

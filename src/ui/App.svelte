@@ -123,9 +123,10 @@
   }
 
   type AppMode = "demo" | "production";
-  type AppView = "year" | "edit" | "settings" | "safety" | "history";
+  type AppView = "year" | "overview" | "edit" | "settings" | "safety" | "history";
   type SettingsTab = "data" | "categories" | "rules";
   type NoteTarget =
+    | { kind: "month"; monthNumber: number; title: string }
     | { kind: "draft"; monthNumber: number; section: Section; subcategoryId: string; title: string }
     | { kind: "edit"; entryId: string; title: string }
     | { kind: "entry"; entryId: string; title: string };
@@ -137,6 +138,7 @@
   const undoLimit = 20;
   const viewLabels: Record<AppView, string> = {
     year: "Jaar",
+    overview: "Overzicht",
     edit: "Bewerken",
     settings: "Instellingen",
     safety: "Veiligheid",
@@ -195,6 +197,7 @@
   let redoStack = $state<UndoSnapshot[]>([]);
   let undoMessage = $state("");
   let restoreInput: HTMLInputElement | null = $state(null);
+  let monthStatus = $state<{ monthNumber: number; message: string } | null>(null);
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -424,6 +427,25 @@
     recordHistory("Jaaroverzicht gemaakt", `Overzicht voor ${selectedYear.year} gedownload.`);
   }
 
+  function openOverview(): void {
+    activeView = "overview";
+  }
+
+  function printOverview(): void {
+    activeView = "overview";
+    requestAnimationFrame(() => window.print());
+    recordHistory("Overzicht afgedrukt", `Overzicht voor ${selectedYear.year} naar afdruk gestuurd.`);
+  }
+
+  function runSafetyCheck(): void {
+    if (validationIssues.length === 0) {
+      safetyMessage = `Controle uitgevoerd: geen problemen gevonden in ${selectedYear.year}.`;
+    } else {
+      safetyMessage = `Controle uitgevoerd: ${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`;
+    }
+    recordHistory("Gegevenscontrole uitgevoerd", safetyMessage);
+  }
+
   function downloadJson(filename: string, payload: unknown): void {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
@@ -495,6 +517,31 @@
     storageReady = true;
     recordHistory("Gegevensmodus gewijzigd", `${previousMode === "demo" ? "Leren" : "Echt"} naar ${nextMode === "demo" ? "Leren" : "Echt"}.`);
     requestAnimationFrame(() => selectMonth(activeMonth));
+  }
+
+  function checkMonth(month: BudgetMonth): void {
+    const total = monthTotal(month.month);
+    const emptyAmounts = month.entries.filter((entry) => entry.amountCents === null).length;
+    const message =
+      emptyAmounts === 0
+        ? `${monthName(month.month)} gecontroleerd: ${month.entries.length} boekingen, eindsaldo ${formatMoneyCents(total?.restCents ?? 0)}.`
+        : `${monthName(month.month)} gecontroleerd: ${emptyAmounts} boeking${emptyAmounts === 1 ? "" : "en"} zonder bedrag.`;
+    monthStatus = { monthNumber: month.month, message };
+    activeMonth = month.month;
+    recordHistory("Maand gecontroleerd", message);
+  }
+
+  function openMonthNote(month: BudgetMonth): void {
+    noteText = month.comment ?? "";
+    noteInitialText = month.comment ?? "";
+    noteCancelWarning = false;
+    notePopup = {
+      kind: "month",
+      monthNumber: month.month,
+      title: `${monthName(month.month)} ${selectedYear.year}`,
+    };
+    centerMonth(month.month);
+    focusNotePopup();
   }
 
   function monthName(monthNumber: number): string {
@@ -679,6 +726,14 @@
 
   function activeRuleCount(): number {
     return book.recurringRules.filter((rule) => rule.active).length;
+  }
+
+  function lockedMonthCount(): number {
+    return selectedYear.months.filter((month) => month.locked).length;
+  }
+
+  function monthsWithOpenAmounts(): BudgetMonth[] {
+    return selectedYear.months.filter((month) => month.entries.some((entry) => entry.amountCents === null));
   }
 
   function isRecurringEntry(entry: Entry): boolean {
@@ -1254,7 +1309,13 @@
   function saveNotePopup(): void {
     const comment = noteText.trim();
 
-    if (notePopup?.kind === "draft") {
+    if (notePopup?.kind === "month") {
+      const month = monthByNumber(notePopup.monthNumber);
+      if (month && comment !== noteInitialText.trim()) {
+        rememberUndo("Maandopmerking bewaard", monthName(month.month));
+        month.comment = comment;
+      }
+    } else if (notePopup?.kind === "draft") {
       const key = draftKey(notePopup.monthNumber, notePopup.section, notePopup.subcategoryId);
       drafts[key] = {
         ...(drafts[key] ?? emptyDraft()),
@@ -1368,13 +1429,83 @@
           <Moon size={19} />
         {/if}
       </button>
-      <button class="primary-action" type="button" title="Overzicht maken" data-tooltip="Overzicht maken" onclick={exportYearOverview}><Download size={18} />Overzicht</button>
+      <button class:active={activeView === "overview"} class="primary-action" type="button" title="Overzicht openen" data-tooltip="Overzicht openen" onclick={openOverview}><Download size={18} />Overzicht</button>
     </div>
   </header>
 
   {#if activeView !== "year"}
     <section class="menu-page" aria-label={activeView === "settings" ? "Instellingen" : "Menu"}>
-      {#if activeView === "settings"}
+      {#if activeView === "overview"}
+        <header>
+          <h2>Jaaroverzicht</h2>
+          <p>Een compacte samenvatting van {selectedYear.year}, klaar om te controleren, downloaden of af te drukken.</p>
+        </header>
+        <section class="menu-card-grid" aria-label="Jaaroverzicht samenvatting">
+          <article class="menu-card">
+            <div class="menu-card-icon"><Coins size={20} /></div>
+            <div>
+              <h3>Startsaldo</h3>
+              <p>{formatMoneyCents(selectedYear.startBalanceCents)}</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Plus size={20} /></div>
+            <div>
+              <h3>Inkomsten</h3>
+              <p>{formatMoneyCents(totals.incomeCents)}</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><ShoppingBasket size={20} /></div>
+            <div>
+              <h3>Uitgaven</h3>
+              <p>{formatMoneyCents(totals.outCents)}</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><CheckCircle2 size={20} /></div>
+            <div>
+              <h3>Eindsaldo</h3>
+              <p>{formatMoneyCents(totals.endCents)}</p>
+            </div>
+          </article>
+        </section>
+        <section class="settings-block overview-print-area" aria-label="Maandoverzicht">
+          <header>
+            <div>
+              <h3>Maanden</h3>
+              <p>{lockedMonthCount()} afgesloten maand{lockedMonthCount() === 1 ? "" : "en"}, {monthsWithOpenAmounts().length} maand{monthsWithOpenAmounts().length === 1 ? "" : "en"} met een open bedrag.</p>
+            </div>
+            <div class="history-actions">
+              <button type="button" class="inline-action" onclick={exportYearOverview}>Download JSON</button>
+              <button type="button" class="inline-action" onclick={printOverview}>Afdrukken</button>
+            </div>
+          </header>
+          <div class="overview-table" role="table" aria-label="Maanden met bedragen">
+            <div class="overview-row overview-head" role="row">
+              <span>Maand</span>
+              <span>Inkomsten</span>
+              <span>Vast</span>
+              <span>Variabel</span>
+              <span>Verschil</span>
+              <span>Eindsaldo</span>
+              <span>Status</span>
+            </div>
+            {#each totals.months as month}
+              {@const sourceMonth = monthByNumber(month.month)}
+              <div class="overview-row" role="row">
+                <strong>{monthName(month.month)}</strong>
+                <span>{formatMoneyCents(month.totals.incomeCents)}</span>
+                <span>{formatMoneyCents(month.totals.fixedCents)}</span>
+                <span>{formatMoneyCents(month.totals.variableCents)}</span>
+                <span class:negative={month.totals.differenceCents < 0}>{formatMoneyCents(month.totals.differenceCents)}</span>
+                <span class:negative={month.totals.restCents < 0}>{formatMoneyCents(month.totals.restCents)}</span>
+                <small>{sourceMonth?.locked ? "Afgesloten" : "Open"}</small>
+              </div>
+            {/each}
+          </div>
+        </section>
+      {:else if activeView === "settings"}
         <header>
           <h2>Instellingen</h2>
           <p>Kies rustig wat je wil aanpassen. Elke instelling blijft op zijn eigen pagina.</p>
@@ -1778,6 +1909,7 @@
               <h3>Gegevenscontrole</h3>
               <p>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</p>
             </div>
+            <button type="button" class="inline-action" onclick={runSafetyCheck}>Controle uitvoeren</button>
           </article>
           <article class="menu-card">
             <div class="menu-card-icon"><CheckCircle2 size={20} /></div>
@@ -1904,7 +2036,7 @@
             <div class="menu-card-icon"><History size={20} /></div>
             <div>
               <h3>Wijzigingen</h3>
-              <p>Nieuwe acties worden nu gelogd. Volledige undo/redo komt later als aparte veilige functie.</p>
+              <p>Nieuwe acties worden gelogd. Ongedaan maken en opnieuw doen zijn beschikbaar voor recente wijzigingen.</p>
             </div>
           </article>
           <article class="menu-card">
@@ -1980,8 +2112,17 @@
             <button type="button" aria-label="Volgende maand" title="Volgende maand" data-tooltip="Volgende maand" onclick={() => selectMonth(nextMonth(month.month))}>
               <ChevronRight size={18} />
             </button>
-            <button type="button" aria-label="Controle" title="Controle" data-tooltip="Controle"><CheckCircle2 size={18} /></button>
-            <button type="button" aria-label="Opmerkingen" title="Opmerkingen" data-tooltip="Opmerkingen"><MessageCircle size={18} /></button>
+            <button type="button" aria-label="Maand controleren" title="Maand controleren" data-tooltip="Maand controleren" onclick={() => checkMonth(month)}><CheckCircle2 size={18} /></button>
+            <button
+              class:has-note={Boolean(month.comment?.trim())}
+              type="button"
+              aria-label={`Maandopmerking voor ${monthName(month.month)}`}
+              title="Maandopmerking"
+              data-tooltip="Maandopmerking"
+              onclick={() => openMonthNote(month)}
+            >
+              <MessageCircle size={18} />
+            </button>
             <button
               type="button"
               aria-label={month.locked ? "Maand ontgrendelen" : "Maand afsluiten"}
@@ -2009,6 +2150,13 @@
           <div class="locked-month-note" role="status">
             <Lock size={14} aria-hidden="true" />
             <span>{monthName(month.month)} is vergrendeld. Ontgrendel om te wijzigen.</span>
+          </div>
+        {/if}
+
+        {#if monthStatus?.monthNumber === month.month}
+          <div class="month-status-note" role="status">
+            <CheckCircle2 size={14} aria-hidden="true" />
+            <span>{monthStatus.message}</span>
           </div>
         {/if}
 

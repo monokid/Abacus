@@ -79,6 +79,7 @@ export interface BudgetYear {
 export interface BudgetMonth {
   month: number;
   locked: boolean;
+  comment?: string;
   entries: Entry[];
 }
 
@@ -123,6 +124,7 @@ export function createYear(year: number, startBalanceCents: number): BudgetYear 
     months: Array.from({ length: 12 }, (_, index) => ({
       month: index + 1,
       locked: false,
+      comment: "",
       entries: [],
     })),
   };

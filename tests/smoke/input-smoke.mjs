@@ -29,7 +29,7 @@ try {
     executablePath: chromePath(),
     headless: true,
   });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ acceptDownloads: true });
   await page.setViewportSize({ width: 954, height: 827 });
   const runtimeErrors = [];
   page.on("console", (message) => {
@@ -55,6 +55,7 @@ try {
   await expectModeSwitchSeparatesDemo(page);
   await expectCategorySettingsManagement(page);
   await expectRecurringRuleSettings(page);
+  await expectRemainingMenusFunctional(page);
   await expectMonthLockBlocksEditing(page);
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
@@ -446,6 +447,47 @@ async function expectMonthLockBlocksEditing(page) {
   await openDraft(page, 8, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectMonthCardVisibleText(page, 8, "Omschrijving");
   await page.keyboard.press("Escape");
+}
+
+async function expectRemainingMenusFunctional(page) {
+  await page.locator(".header-actions").getByRole("button", { name: /Overzicht/ }).click();
+  await expectVisibleText(page, "Jaaroverzicht");
+  await expectVisibleText(page, "Maanden");
+  await captureScreenshot(page, "17-overview-page.png");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download JSON" }).click();
+  const download = await downloadPromise;
+  if (!download.suggestedFilename().startsWith("abacus-overzicht-2026")) {
+    throw new Error(`Overzicht-download heeft onverwachte naam: ${download.suggestedFilename()}`);
+  }
+
+  await page.getByRole("button", { name: "Veiligheid" }).click();
+  await expectVisibleText(page, "Veiligheid");
+  await page.getByRole("button", { name: "Controle uitvoeren" }).click();
+  await expectVisibleText(page, "Controle uitgevoerd");
+
+  await page.locator(".app-header").getByRole("button", { name: "Jaar", exact: true }).click();
+  await navigateToMonth(page, 8);
+  const card = page.locator('[data-month-card="8"]');
+  await card.getByLabel("Maand controleren").click();
+  await expectMonthCardVisibleText(page, 8, "Augustus gecontroleerd");
+  await captureScreenshot(page, "18-month-actions.png");
+
+  await card.getByLabel("Maandopmerking voor Augustus").click();
+  const popup = page.locator('[data-testid="note-popup"]');
+  await popup.waitFor({ state: "visible", timeout: 5_000 });
+  await popup.getByLabel("Uitgebreide melding").fill("Let op: augustus is een testmaand voor papa.");
+  await popup.getByLabel("Melding bewaren").click();
+  await popup.waitFor({ state: "hidden", timeout: 5_000 });
+
+  await card.getByLabel("Maandopmerking voor Augustus").click();
+  await popup.waitFor({ state: "visible", timeout: 5_000 });
+  const savedNote = await popup.getByLabel("Uitgebreide melding").inputValue();
+  if (!savedNote.includes("testmaand")) {
+    throw new Error("Maandopmerking werd niet bewaard of niet opnieuw geladen.");
+  }
+  await popup.getByLabel("Melding annuleren").click();
+  await popup.waitFor({ state: "hidden", timeout: 5_000 });
 }
 
 async function expectIncomeDraftTabOrder(page, monthNumber) {
