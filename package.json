@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke:input": "node tests/smoke/input-smoke.mjs",
-    "verify": "npm run typecheck && npm test && npm run build"
+    "verify": "npm run typecheck && npm test && npm run build",
+    "package:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-test-package.ps1"
   },
   "dependencies": {
     "@lucide/svelte": "^1.21.0",
