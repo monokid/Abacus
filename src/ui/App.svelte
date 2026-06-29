@@ -36,6 +36,7 @@
     addRecurringRule as addBookRecurringRule,
     allSubcategoriesFor,
     createEmptyBook,
+    createYear,
     moveSubcategory as moveBookSubcategory,
     renameSubcategory as renameBookSubcategory,
     subcategoryUsage,
@@ -45,7 +46,7 @@
   import { syncRecurringEntriesForBook } from "../core/recurring";
   import { fictionalSampleBook } from "../core/sample-data";
   import { SECTION_LABELS, type Section } from "../core/sections";
-  import type { Book, BudgetMonth, Entry, RecurringFrequency, RecurringRule, Subcategory } from "../core/model";
+  import type { Book, BudgetMonth, BudgetYear, Entry, RecurringFrequency, RecurringRule, Subcategory } from "../core/model";
 
   import januariImage from "../../assets/months/januari.png";
   import februariImage from "../../assets/months/februari.png";
@@ -64,6 +65,7 @@
   interface DraftEntry {
     party: string;
     description: string;
+    descriptionError: string;
     amountText: string;
     amountError: string;
     comment: string;
@@ -197,7 +199,6 @@
   let redoStack = $state<UndoSnapshot[]>([]);
   let undoMessage = $state("");
   let restoreInput: HTMLInputElement | null = $state(null);
-  let monthStatus = $state<{ monthNumber: number; message: string } | null>(null);
 
   const selectedYear = $derived.by(() => {
     const year = book.years[0];
@@ -205,6 +206,7 @@
     return year;
   });
 
+  const nextYear = $derived(book.years.find((year) => year.year === selectedYear.year + 1) ?? null);
   const totals = $derived(yearTotals(selectedYear));
   const currentMonthInSelectedYear = $derived(selectedYear.year === today.getFullYear() ? today.getMonth() + 1 : null);
   const validationIssues = $derived(validateBook(book));
@@ -260,8 +262,9 @@
         const parsedBook = JSON.parse(savedBook) as Book;
         const issues = validateBook(parsedBook);
         if (issues.length === 0) {
-          book = parsedBook;
-          drafts = createDrafts(parsedBook);
+          const readyBook = ensurePlanningYear(parsedBook);
+          book = readyBook;
+          drafts = createDrafts(readyBook);
           expandedDraftKey = null;
           saveStatus = "Lokaal geladen";
           return;
@@ -273,8 +276,9 @@
       }
     }
 
-    book = fallbackBook;
-    drafts = createDrafts(fallbackBook);
+    const readyFallback = ensurePlanningYear(fallbackBook);
+    book = readyFallback;
+    drafts = createDrafts(readyFallback);
     expandedDraftKey = null;
   }
 
@@ -332,7 +336,7 @@
   }
 
   function restoreBookSnapshot(snapshotBook: Book): void {
-    book = cloneBook(snapshotBook);
+    book = ensurePlanningYear(cloneBook(snapshotBook));
     syncRecurringEntriesForBook(book);
     drafts = createDrafts(book);
     expandedDraftKey = null;
@@ -499,7 +503,7 @@
   }
 
   function defaultBookForMode(mode: AppMode): Book {
-    return mode === "demo" ? fictionalSampleBook() : createEmptyBook(2026);
+    return ensurePlanningYear(mode === "demo" ? fictionalSampleBook() : createEmptyBook(2026));
   }
 
   function storageKeyForMode(mode: AppMode): string {
@@ -519,16 +523,103 @@
     requestAnimationFrame(() => selectMonth(activeMonth));
   }
 
-  function checkMonth(month: BudgetMonth): void {
-    const total = monthTotal(month.month);
-    const emptyAmounts = month.entries.filter((entry) => entry.amountCents === null).length;
-    const message =
-      emptyAmounts === 0
-        ? `${monthName(month.month)} gecontroleerd: ${month.entries.length} boekingen, eindsaldo ${formatMoneyCents(total?.restCents ?? 0)}.`
-        : `${monthName(month.month)} gecontroleerd: ${emptyAmounts} boeking${emptyAmounts === 1 ? "" : "en"} zonder bedrag.`;
-    monthStatus = { monthNumber: month.month, message };
-    activeMonth = month.month;
-    recordHistory("Maand gecontroleerd", message);
+  function ensurePlanningYear(sourceBook: Book): Book {
+    const baseYear = sourceBook.years[0];
+    if (!baseYear) return sourceBook;
+    ensureNextYear(sourceBook, baseYear);
+    return sourceBook;
+  }
+
+  function ensureNextYear(sourceBook: Book, baseYear: BudgetYear): BudgetYear {
+    const wantedYear = baseYear.year + 1;
+    let targetYear = sourceBook.years.find((year) => year.year === wantedYear);
+    if (targetYear) return targetYear;
+
+    const baseTotals = yearTotals(baseYear);
+    targetYear = createYear(wantedYear, baseTotals.endCents);
+    sourceBook.years.push(targetYear);
+    sourceBook.years.sort((left, right) => left.year - right.year);
+    return targetYear;
+  }
+
+  function entryFingerprint(entry: Entry): string {
+    return [entry.section, entry.subcategoryId ?? "", entry.party.trim(), entry.description.trim(), entry.amountCents ?? "", entry.comment.trim()].join("|");
+  }
+
+  function monthFingerprint(month: BudgetMonth): string {
+    return month.entries.map(entryFingerprint).sort().join(";");
+  }
+
+  function projectedEntryId(sourceYear: number, sourceEntryId: string): string {
+    return `projection-${sourceYear}-${sourceEntryId}`;
+  }
+
+  function projectionSummary(month: BudgetMonth): string {
+    const targetYear = nextYear ?? ensureNextYear(book, selectedYear);
+    const targetMonth = targetYear.months.find((item) => item.month === month.month);
+    if (!targetMonth?.projection) {
+      return `Nog geen projectie voor ${monthName(month.month)} ${targetYear.year}.`;
+    }
+
+    const projectedAt = formatHistoryTime(new Date(targetMonth.projection.projectedAt).getTime());
+    const changed = targetMonth.projection.sourceFingerprint !== monthFingerprint(month);
+    return `${monthName(month.month)} ${targetYear.year} laatst bijgewerkt op ${projectedAt}. ${changed ? "Er zijn nieuwe wijzigingen beschikbaar." : "Projectie is actueel."}`;
+  }
+
+  function projectionStateLabel(month: BudgetMonth): string {
+    const targetYear = nextYear;
+    if (!targetYear) return `Nog geen projectie voor ${selectedYear.year + 1}`;
+    const targetMonth = targetYear.months.find((item) => item.month === month.month);
+    if (!targetMonth?.projection) return `Nog geen projectie voor ${targetYear.year}`;
+    const changed = targetMonth.projection.sourceFingerprint !== monthFingerprint(month);
+    return changed ? `Projectie ${targetYear.year}: bijwerken beschikbaar` : `Projectie ${targetYear.year}: actueel`;
+  }
+
+  function confirmProjectMonth(month: BudgetMonth): boolean {
+    const targetYear = nextYear ?? ensureNextYear(book, selectedYear);
+    const targetMonth = targetYear.months.find((item) => item.month === month.month);
+    const existingText = targetMonth?.projection
+      ? `\n\n${projectionSummary(month)}`
+      : `\n\nEr bestaat nog geen projectie voor ${monthName(month.month)} ${targetYear.year}.`;
+    return window.confirm(
+      `${monthName(month.month)} afsluiten en projectie maken voor ${monthName(month.month)} ${targetYear.year}?${existingText}\n\nDe app vervangt eerdere projectieregels uit ${selectedYear.year}, maar laat eigen regels in ${targetYear.year} staan.`,
+    );
+  }
+
+  function projectMonthToNextYear(month: BudgetMonth): void {
+    const targetYear = ensureNextYear(book, selectedYear);
+    const targetMonth = targetYear.months.find((item) => item.month === month.month);
+    if (!targetMonth) return;
+
+    const projectedAt = new Date().toISOString();
+    const sourceFingerprint = monthFingerprint(month);
+    const projectedEntries = month.entries.map((entry, index) => ({
+      ...entry,
+      id: projectedEntryId(selectedYear.year, entry.id),
+      date: `${targetYear.year}-${String(month.month).padStart(2, "0")}-01`,
+      createdAt: Date.UTC(targetYear.year, month.month - 1, index + 1),
+      projection: {
+        sourceYear: selectedYear.year,
+        sourceMonth: month.month,
+        sourceEntryId: entry.id,
+        projectedAt,
+        sourceFingerprint: entryFingerprint(entry),
+      },
+    }));
+
+    targetMonth.entries = [
+      ...targetMonth.entries.filter((entry) => entry.projection?.sourceYear !== selectedYear.year || entry.projection.sourceMonth !== month.month),
+      ...projectedEntries,
+    ].sort((left, right) => left.createdAt - right.createdAt);
+    targetMonth.projection = {
+      sourceYear: selectedYear.year,
+      sourceMonth: month.month,
+      projectedAt,
+      entryCount: projectedEntries.length,
+      sourceFingerprint,
+    };
+    const message = `${monthName(month.month)} ${targetYear.year} bijgewerkt met ${projectedEntries.length} projectieregels.`;
+    recordHistory("Projectie bijgewerkt", message);
   }
 
   function openMonthNote(month: BudgetMonth): void {
@@ -734,6 +825,10 @@
 
   function monthsWithOpenAmounts(): BudgetMonth[] {
     return selectedYear.months.filter((month) => month.entries.some((entry) => entry.amountCents === null));
+  }
+
+  function projectedMonthCount(): number {
+    return nextYear?.months.filter((month) => month.projection?.sourceYear === selectedYear.year).length ?? 0;
   }
 
   function isRecurringEntry(entry: Entry): boolean {
@@ -976,8 +1071,11 @@
 
   function toggleMonthLock(month: BudgetMonth): void {
     const willLock = !month.locked;
+    if (willLock && !confirmProjectMonth(month)) return;
+
     rememberUndo(willLock ? "Maand vergrendeld" : "Maand ontgrendeld", `${monthName(month.month)} ${willLock ? "vergrendeld" : "ontgrendeld"}.`);
     month.locked = willLock;
+    if (willLock) projectMonthToNextYear(month);
 
     if (willLock) {
       if (expandedDraftKey?.startsWith(`${month.month}:`)) expandedDraftKey = null;
@@ -1024,10 +1122,20 @@
     const comment = draft.comment.trim();
     if (!party && !description && !amountText) return;
 
+    let hasError = false;
+    if (!description) {
+      draft.descriptionError = "Omschrijving is verplicht.";
+      hasError = true;
+    }
+    if (!amountText) {
+      draft.amountError = "Bedrag is verplicht.";
+      hasError = true;
+    }
     if (!isValidAmountText(amountText)) {
       draft.amountError = "Controleer het bedrag.";
-      return;
+      hasError = true;
     }
+    if (hasError) return;
 
     rememberUndo("Boeking toegevoegd", `${monthName(month.month)}: ${description || "Nieuwe regel"}`);
     const newEntryId = `demo-${month.month}-${section}-${Date.now()}`;
@@ -1048,6 +1156,7 @@
     drafts[key] = {
       party: "",
       description: "",
+      descriptionError: "",
       amountText: "",
       amountError: "",
       comment: "",
@@ -1077,6 +1186,7 @@
     editDraft = {
       party: entry.party,
       description: entry.description,
+      descriptionError: "",
       amountText: formatDecimalCents(entry.amountCents),
       amountError: "",
       comment: entry.comment,
@@ -1100,14 +1210,25 @@
     }
 
     const amountText = editDraft.amountText.trim();
+    const description = editDraft.description.trim();
+    let hasError = false;
+    if (!description) {
+      editDraft.descriptionError = "Omschrijving is verplicht.";
+      hasError = true;
+    }
+    if (!amountText) {
+      editDraft.amountError = "Bedrag is verplicht.";
+      hasError = true;
+    }
     if (!isValidAmountText(amountText)) {
       editDraft.amountError = "Controleer het bedrag.";
-      return;
+      hasError = true;
     }
+    if (hasError) return;
 
     rememberUndo("Boeking aangepast", entry.description);
     entry.party = editDraft.party.trim();
-    entry.description = editDraft.description.trim() || "Nieuwe regel";
+    entry.description = description;
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
     entry.comment = editDraft.comment.trim();
     recordHistory("Boeking aangepast", `${entry.description} werd aangepast.`);
@@ -1204,6 +1325,10 @@
     draft.amountError = "";
   }
 
+  function clearDescriptionError(draft: DraftEntry): void {
+    draft.descriptionError = "";
+  }
+
   function isValidAmountText(amountText: string): boolean {
     const text = amountText.trim().replace(/[\u20ac\s]/g, "");
     if (!text) return true;
@@ -1235,6 +1360,7 @@
     return {
       party: "",
       description: "",
+      descriptionError: "",
       amountText: "",
       amountError: "",
       comment: "",
@@ -1467,6 +1593,13 @@
             <div>
               <h3>Eindsaldo</h3>
               <p>{formatMoneyCents(totals.endCents)}</p>
+            </div>
+          </article>
+          <article class="menu-card">
+            <div class="menu-card-icon"><Clock size={20} /></div>
+            <div>
+              <h3>Projectie {selectedYear.year + 1}</h3>
+              <p>{projectedMonthCount()} maand{projectedMonthCount() === 1 ? "" : "en"} klaargezet als basis voor volgend jaar.</p>
             </div>
           </article>
         </section>
@@ -2112,7 +2245,6 @@
             <button type="button" aria-label="Volgende maand" title="Volgende maand" data-tooltip="Volgende maand" onclick={() => selectMonth(nextMonth(month.month))}>
               <ChevronRight size={18} />
             </button>
-            <button type="button" aria-label="Maand controleren" title="Maand controleren" data-tooltip="Maand controleren" onclick={() => checkMonth(month)}><CheckCircle2 size={18} /></button>
             <button
               class:has-note={Boolean(month.comment?.trim())}
               type="button"
@@ -2151,12 +2283,9 @@
             <Lock size={14} aria-hidden="true" />
             <span>{monthName(month.month)} is vergrendeld. Ontgrendel om te wijzigen.</span>
           </div>
-        {/if}
-
-        {#if monthStatus?.monthNumber === month.month}
-          <div class="month-status-note" role="status">
-            <CheckCircle2 size={14} aria-hidden="true" />
-            <span>{monthStatus.message}</span>
+          <div class="projection-note" role="status">
+            <Clock size={14} aria-hidden="true" />
+            <span>{projectionStateLabel(month)}</span>
           </div>
         {/if}
 
@@ -2209,7 +2338,7 @@
               {@const key = draftKey(month.month, section, subcategory.id)}
               {#if !month.locked && isDraftVisible(key, draft)}
                 <div
-                  class:has-error={Boolean(draft.amountError)}
+                  class:has-error={Boolean(draft.descriptionError || draft.amountError)}
                   class:has-note={Boolean(draft.comment.trim())}
                   class="entry-row new-entry-row new-entry-panel"
                   data-testid={`draft-${month.month}-${section}-${subcategory.id}`}
@@ -2224,13 +2353,21 @@
                     onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
                   />
 
-                  <input
-                    class="ledger-input description-input"
-                    aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
-                    bind:value={draft.description}
-                    placeholder="Omschrijving"
-                    onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
-                  />
+                  <label class="field description-field">
+                    <input
+                      class="ledger-input description-input"
+                      aria-describedby={draft.descriptionError ? `description-error-${month.month}-${section}-${subcategory.id}` : undefined}
+                      aria-invalid={Boolean(draft.descriptionError)}
+                      aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
+                      bind:value={draft.description}
+                      placeholder="Omschrijving"
+                      oninput={() => clearDescriptionError(draft)}
+                      onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
+                    />
+                    {#if draft.descriptionError}
+                      <small id={`description-error-${month.month}-${section}-${subcategory.id}`} class="field-error">{draft.descriptionError}</small>
+                    {/if}
+                  </label>
 
                   <label class="field amount-field">
                     <input
@@ -2280,7 +2417,7 @@
                 {#each groupedEntries as entry}
                   {#if editingEntryId === entry.id}
                     <div
-                      class:has-error={Boolean(editDraft.amountError)}
+                      class:has-error={Boolean(editDraft.descriptionError || editDraft.amountError)}
                       class="entry-row edit-row"
                       data-edit-entry={entry.id}
                       data-testid={`edit-${entry.id}`}
@@ -2295,8 +2432,11 @@
                       <span class="description-cell">
                         <input
                           class="ledger-input description-input"
+                          aria-describedby={editDraft.descriptionError ? `edit-description-error-${entry.id}` : undefined}
+                          aria-invalid={Boolean(editDraft.descriptionError)}
                           aria-label={`Omschrijving bewerken voor ${entry.description}`}
                           bind:value={editDraft.description}
+                          oninput={() => clearDescriptionError(editDraft)}
                           onkeydown={(event) => maybeHandleEditKey(event, entry)}
                         />
                         <button
@@ -2312,6 +2452,9 @@
                         >
                           <MessageCircle size={14} />
                         </button>
+                        {#if editDraft.descriptionError}
+                          <small id={`edit-description-error-${entry.id}`} class="field-error">{editDraft.descriptionError}</small>
+                        {/if}
                       </span>
                       <label class="edit-amount">
                         <input
@@ -2367,7 +2510,7 @@
             {#each uncategorizedEntries(month, section) as entry}
               {#if editingEntryId === entry.id}
                 <div
-                  class:has-error={Boolean(editDraft.amountError)}
+                  class:has-error={Boolean(editDraft.descriptionError || editDraft.amountError)}
                   class="entry-row edit-row"
                   data-edit-entry={entry.id}
                   data-testid={`edit-${entry.id}`}
@@ -2382,8 +2525,11 @@
                   <span class="description-cell">
                     <input
                       class="ledger-input description-input"
+                      aria-describedby={editDraft.descriptionError ? `edit-description-error-${entry.id}` : undefined}
+                      aria-invalid={Boolean(editDraft.descriptionError)}
                       aria-label={`Omschrijving bewerken voor ${entry.description}`}
                       bind:value={editDraft.description}
+                      oninput={() => clearDescriptionError(editDraft)}
                       onkeydown={(event) => maybeHandleEditKey(event, entry)}
                     />
                     <button
@@ -2399,6 +2545,9 @@
                     >
                       <MessageCircle size={14} />
                     </button>
+                    {#if editDraft.descriptionError}
+                      <small id={`edit-description-error-${entry.id}`} class="field-error">{editDraft.descriptionError}</small>
+                    {/if}
                   </span>
                   <label class="edit-amount">
                     <input

@@ -243,21 +243,32 @@ h1 {
 
 .menu-page {
   display: grid;
-  gap: 14px;
+  gap: 10px 14px;
   align-content: start;
   height: calc(100vh - 52px);
   min-height: calc(100vh - 88px);
   overflow-y: auto;
-  padding: 22px 24px 72px;
+  padding: 14px 18px 72px;
   background:
     linear-gradient(180deg, rgba(251, 247, 237, 0.92), rgba(236, 228, 211, 0.92)),
     #efe8d9;
 }
 
+.menu-page > * {
+  min-width: 0;
+}
+
+.menu-page:has(.settings-tabs) {
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+}
+
+.menu-page:has(.settings-tabs) > * {
+  grid-column: 2;
+}
+
 .menu-page > header,
 .settings-card,
 .settings-tabs {
-  max-width: 980px;
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.76);
@@ -265,12 +276,17 @@ h1 {
 }
 
 .menu-page > header {
-  padding: 18px 20px;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
 }
 
 .menu-page h2 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.5rem;
+  font-size: 1.32rem;
 }
 
 .menu-page p,
@@ -293,14 +309,19 @@ h1 {
 }
 
 .settings-tabs {
+  grid-column: 1;
+  position: sticky;
+  top: 8px;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  width: fit-content;
-  padding: 4px;
+  gap: 5px;
+  width: 100%;
+  padding: 6px;
 }
 
 .settings-tabs button {
+  width: 100%;
   min-height: 32px;
   border: 0;
   border-radius: 6px;
@@ -320,7 +341,6 @@ h1 {
 .settings-block {
   display: grid;
   gap: 12px;
-  max-width: 1160px;
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.74);
@@ -349,10 +369,9 @@ h1 {
 
 .menu-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  width: min(100%, 1160px);
-  max-width: 1160px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 9px;
+  width: 100%;
 }
 
 .menu-card {
@@ -363,7 +382,7 @@ h1 {
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background: rgba(255, 253, 247, 0.74);
-  padding: 14px;
+  padding: 10px;
   box-shadow: 0 18px 38px rgba(65, 51, 26, 0.1);
 }
 
@@ -377,8 +396,8 @@ h1 {
 .menu-card-icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  min-height: 36px;
+  width: 32px;
+  min-height: 32px;
   border: 1px solid rgba(67, 86, 54, 0.2);
   border-radius: 8px;
   color: #355f40;
@@ -1285,6 +1304,15 @@ h1 {
   cursor: pointer;
 }
 
+.evening .year-loop-card {
+  color: #d8c783;
+  border-color: rgba(218, 184, 110, 0.34);
+  background:
+    linear-gradient(135deg, rgba(218, 184, 110, 0.08), rgba(17, 34, 27, 0.92)),
+    #14241d;
+  box-shadow: inset 0 0 0 1px rgba(15, 31, 25, 0.72);
+}
+
 .year-loop-card span,
 .year-loop-card strong {
   display: block;
@@ -1356,6 +1384,26 @@ h1 {
     rgba(255, 253, 247, 0.9);
 }
 
+.month-card.locked-card::after {
+  position: absolute;
+  top: 94px;
+  right: 18px;
+  z-index: 2;
+  transform: rotate(-7deg);
+  border: 1px solid color-mix(in srgb, var(--month-accent) 55%, rgba(67, 86, 54, 0.34));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--month-accent) 66%, #355f40);
+  background: rgba(255, 253, 247, 0.56);
+  padding: 4px 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  content: "Afgesloten";
+}
+
 .month-card.locked-card .month-header {
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--month-accent-mist) 76%, #f5f0df), rgba(255, 253, 247, 0.9) 52%, rgba(245, 241, 229, 0.78)),
@@ -1373,6 +1421,12 @@ h1 {
   background:
     linear-gradient(135deg, rgba(244, 232, 190, 0.05), rgba(19, 37, 30, 0.94)),
     rgba(19, 37, 30, 0.94);
+}
+
+.evening .month-card.locked-card::after {
+  color: #eadca8;
+  border-color: rgba(219, 190, 118, 0.36);
+  background: rgba(17, 34, 27, 0.68);
 }
 
 .month-header {
@@ -1480,7 +1534,8 @@ h1 {
 }
 
 .locked-month-note,
-.month-status-note {
+.month-status-note,
+.projection-note {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1497,8 +1552,14 @@ h1 {
   background: rgba(232, 240, 222, 0.52);
 }
 
+.projection-note {
+  color: #6a5b2d;
+  background: rgba(232, 212, 143, 0.18);
+}
+
 .locked-month-note svg,
-.month-status-note svg {
+.month-status-note svg,
+.projection-note svg {
   flex: 0 0 auto;
   color: #657044;
 }
@@ -1507,15 +1568,21 @@ h1 {
   color: #355f40;
 }
 
+.projection-note svg {
+  color: #8a7436;
+}
+
 .evening .locked-month-note,
-.evening .month-status-note {
+.evening .month-status-note,
+.evening .projection-note {
   color: #dfd2a7;
   border-bottom-color: rgba(219, 190, 118, 0.14);
   background: rgba(244, 232, 190, 0.08);
 }
 
 .evening .locked-month-note svg,
-.evening .month-status-note svg {
+.evening .month-status-note svg,
+.evening .projection-note svg {
   color: #d7c47e;
 }
 

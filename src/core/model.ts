@@ -81,6 +81,15 @@ export interface BudgetMonth {
   locked: boolean;
   comment?: string;
   entries: Entry[];
+  projection?: MonthProjection;
+}
+
+export interface MonthProjection {
+  sourceYear: number;
+  sourceMonth: number;
+  projectedAt: string;
+  entryCount: number;
+  sourceFingerprint: string;
 }
 
 export interface Entry {
@@ -93,6 +102,15 @@ export interface Entry {
   amountCents: number | null;
   comment: string;
   createdAt: number;
+  projection?: EntryProjection;
+}
+
+export interface EntryProjection {
+  sourceYear: number;
+  sourceMonth: number;
+  sourceEntryId: string;
+  projectedAt: string;
+  sourceFingerprint: string;
 }
 
 export function createEmptyBook(year = new Date().getFullYear()): Book {
@@ -125,6 +143,7 @@ export function createYear(year: number, startBalanceCents: number): BudgetYear 
       month: index + 1,
       locked: false,
       comment: "",
+      projection: undefined,
       entries: [],
     })),
   };

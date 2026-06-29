@@ -83,6 +83,7 @@ try {
   await expectIncomeDraftTabOrder(page, 1);
   await expectFocusedElementContained(page, "tab naar plusknop");
   await expectDraftPanelsContained(page, "tab naar plusknop");
+  await expectRequiredEntryFields(page);
   await expectExcelScrollbarsUsable(page, "eerste laadbeurt");
   await expectGlobalScrollbarTheme(page, "eerste laadbeurt");
   await expectNoNestedMonthLedgerVerticalScrollbars(page);
@@ -424,8 +425,20 @@ async function expectMonthLockBlocksEditing(page) {
   await expectActiveMonthVisible(page, 8);
 
   const card = page.locator('[data-month-card="8"]');
+  page.once("dialog", async (dialog) => {
+    if (!dialog.message().includes("projectie maken")) throw new Error(`Onverwachte afsluitmelding: ${dialog.message()}`);
+    await dialog.dismiss();
+  });
+  await card.getByLabel("Maand afsluiten").click();
+  await expectMonthCardHiddenText(page, 8, "Augustus is vergrendeld");
+
+  page.once("dialog", async (dialog) => {
+    if (!dialog.message().includes("projectie maken")) throw new Error(`Onverwachte afsluitmelding: ${dialog.message()}`);
+    await dialog.accept();
+  });
   await card.getByLabel("Maand afsluiten").click();
   await expectMonthCardVisibleText(page, 8, "Augustus is vergrendeld");
+  await expectMonthCardVisibleText(page, 8, "Projectie 2027");
   await captureScreenshot(page, "16-month-locked.png");
 
   const addButton = card.getByLabel("Invoer openen voor Pensioen").first();
@@ -469,9 +482,9 @@ async function expectRemainingMenusFunctional(page) {
   await page.locator(".app-header").getByRole("button", { name: "Jaar", exact: true }).click();
   await navigateToMonth(page, 8);
   const card = page.locator('[data-month-card="8"]');
-  await card.getByLabel("Maand controleren").click();
-  await expectMonthCardVisibleText(page, 8, "Augustus gecontroleerd");
-  await captureScreenshot(page, "18-month-actions.png");
+  if ((await card.getByLabel("Maand controleren").count()) > 0) {
+    throw new Error("Maandcontroleknop staat nog op de maandkaart.");
+  }
 
   await card.getByLabel("Maandopmerking voor Augustus").click();
   const popup = page.locator('[data-testid="note-popup"]');
@@ -488,6 +501,21 @@ async function expectRemainingMenusFunctional(page) {
   }
   await popup.getByLabel("Melding annuleren").click();
   await popup.waitFor({ state: "hidden", timeout: 5_000 });
+  await captureScreenshot(page, "18-month-actions.png");
+}
+
+async function expectRequiredEntryFields(page) {
+  await navigateToMonth(page, 1);
+  await openDraft(page, 1, "inkomsten", "sub-ink-pensioen", "Pensioen");
+  const draft = page.locator('[data-testid="draft-1-inkomsten-sub-ink-pensioen"]');
+  await draft.locator('input[aria-label^="Partij"]').fill("Testpartij");
+  await draft.getByLabel("Nieuwe regel toevoegen aan Pensioen").click();
+  await expectMonthCardVisibleText(page, 1, "Omschrijving is verplicht");
+  await expectMonthCardVisibleText(page, 1, "Bedrag is verplicht");
+  await draft.locator('input[aria-label^="Omschrijving"]').fill("Verplichte velden test");
+  await draft.locator('input[aria-label^="Bedrag"]').fill("12,34");
+  await draft.getByLabel("Nieuwe regel toevoegen aan Pensioen").click();
+  await expectMonthCardVisibleText(page, 1, "Verplichte velden test");
 }
 
 async function expectIncomeDraftTabOrder(page, monthNumber) {
