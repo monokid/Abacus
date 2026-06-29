@@ -12,13 +12,11 @@
     Coins,
     Download,
     FileCheck,
-    History,
     Lock,
     MessageCircle,
     Moon,
     Pencil,
     Plus,
-    RotateCcw,
     Settings,
     Shield,
     ShieldCheck,
@@ -125,8 +123,9 @@
   }
 
   type AppMode = "demo" | "production";
-  type AppView = "year" | "overview" | "edit" | "settings" | "safety" | "history";
+  type AppView = "year" | "overview" | "settings" | "backup";
   type SettingsTab = "data" | "categories" | "rules";
+  type BackupTab = "backup" | "changes";
   type NoteTarget =
     | { kind: "month"; monthNumber: number; title: string }
     | { kind: "draft"; monthNumber: number; section: Section; subcategoryId: string; title: string }
@@ -139,17 +138,19 @@
   const historyStorageKey = "abacus.history.v1";
   const undoLimit = 20;
   const viewLabels: Record<AppView, string> = {
-    year: "Jaar",
+    year: "Jaarblad",
     overview: "Overzicht",
-    edit: "Bewerken",
     settings: "Instellingen",
-    safety: "Veiligheid",
-    history: "Historiek",
+    backup: "Back-up",
   };
   const settingsTabLabels: Record<SettingsTab, string> = {
-    data: "Gegevens",
     categories: "Categorieen",
     rules: "Vaste regels",
+    data: "Gegevens",
+  };
+  const backupTabLabels: Record<BackupTab, string> = {
+    backup: "Back-up en herstel",
+    changes: "Wijzigingen",
   };
   const recurringFrequencies: Array<{ value: RecurringFrequency; label: string }> = [
     { value: "monthly", label: "Elke maand" },
@@ -166,7 +167,8 @@
   let book = $state(initialBook);
   let appMode = $state<AppMode>("demo");
   let activeView = $state<AppView>("year");
-  let activeSettingsTab = $state<SettingsTab>("data");
+  let activeSettingsTab = $state<SettingsTab>("categories");
+  let activeBackupTab = $state<BackupTab>("backup");
   let activeMonth = $state(1);
   let evening = $state(false);
   let drafts = $state<Record<string, DraftEntry>>(createDrafts(initialBook));
@@ -682,7 +684,18 @@
   }
 
   function activateMonthForInput(monthNumber: number): void {
+    if (activeMonth === monthNumber) return;
     centerMonth(monthNumber);
+  }
+
+  function activateMonthForFocus(event: FocusEvent, monthNumber: number): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, a")) {
+      activeMonth = monthNumber;
+      return;
+    }
+
+    activateMonthForInput(monthNumber);
   }
 
   function scrollRailToItem(railSelector: string, itemSelector: string, resetVertical = false): void {
@@ -796,27 +809,6 @@
 
   function statusCenterLabel(): string {
     return activeView === "year" ? `${monthName(activeMonth)} geselecteerd` : viewLabels[activeView];
-  }
-
-  function openSettingsTab(tab: SettingsTab): void {
-    activeSettingsTab = tab;
-    activeView = "settings";
-  }
-
-  function totalEntryCount(): number {
-    return selectedYear.months.reduce((sum, month) => sum + month.entries.length, 0);
-  }
-
-  function manualEntryCount(): number {
-    return selectedYear.months.reduce((sum, month) => sum + month.entries.filter((entry) => !isRecurringEntry(entry)).length, 0);
-  }
-
-  function configuredSubcategoryCount(): number {
-    return book.subcategories.filter((subcategory) => !subcategory.hidden).length;
-  }
-
-  function activeRuleCount(): number {
-    return book.recurringRules.filter((rule) => rule.active).length;
   }
 
   function lockedMonthCount(): number {
@@ -1540,11 +1532,10 @@
     </section>
 
     <nav class="toolbar" aria-label="Hoofdnavigatie">
-      <button class:active={activeView === "year"} class="tool" type="button" title="Jaaroverzicht" data-tooltip="Jaaroverzicht" onclick={() => (activeView = "year")}><CalendarDays size={16} /><span class="tool-label">Jaar</span></button>
-      <button class:active={activeView === "edit"} class="tool" type="button" title="Bewerken" data-tooltip="Bewerken" onclick={() => (activeView = "edit")}><RotateCcw size={16} /><span class="tool-label">Bewerken</span></button>
+      <button class:active={activeView === "year"} class="tool" type="button" title="Jaarblad" data-tooltip="Jaarblad" onclick={() => (activeView = "year")}><CalendarDays size={16} /><span class="tool-label">Jaarblad</span></button>
+      <button class:active={activeView === "overview"} class="tool" type="button" title="Overzicht" data-tooltip="Overzicht" onclick={openOverview}><Download size={16} /><span class="tool-label">Overzicht</span></button>
       <button class:active={activeView === "settings"} class="tool" type="button" title="Instellingen" data-tooltip="Instellingen" onclick={() => (activeView = "settings")}><Settings size={16} /><span class="tool-label">Instellingen</span></button>
-      <button class:active={activeView === "safety"} class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid" onclick={() => (activeView = "safety")}><Shield size={16} /><span class="tool-label">Veiligheid</span></button>
-      <button class:active={activeView === "history"} class="tool" type="button" title="Historiek" data-tooltip="Historiek" onclick={() => (activeView = "history")}><History size={16} /><span class="tool-label">Historiek</span></button>
+      <button class:active={activeView === "backup"} class="tool" type="button" title="Back-up" data-tooltip="Back-up" onclick={() => (activeView = "backup")}><Shield size={16} /><span class="tool-label">Back-up</span></button>
     </nav>
 
     <div class="header-actions">
@@ -1555,52 +1546,36 @@
           <Moon size={19} />
         {/if}
       </button>
-      <button class:active={activeView === "overview"} class="primary-action" type="button" title="Overzicht openen" data-tooltip="Overzicht openen" onclick={openOverview}><Download size={18} />Overzicht</button>
     </div>
   </header>
 
   {#if activeView !== "year"}
-    <section class="menu-page" aria-label={activeView === "settings" ? "Instellingen" : "Menu"}>
+    <section class="menu-page" aria-label={viewLabels[activeView]}>
       {#if activeView === "overview"}
         <header>
           <h2>Jaaroverzicht</h2>
           <p>Een compacte samenvatting van {selectedYear.year}, klaar om te controleren, downloaden of af te drukken.</p>
         </header>
-        <section class="menu-card-grid" aria-label="Jaaroverzicht samenvatting">
-          <article class="menu-card">
-            <div class="menu-card-icon"><Coins size={20} /></div>
-            <div>
-              <h3>Startsaldo</h3>
-              <p>{formatMoneyCents(selectedYear.startBalanceCents)}</p>
-            </div>
+        <section class="overview-strip" aria-label="Jaaroverzicht samenvatting">
+          <article>
+            <span>Startsaldo</span>
+            <strong>{formatMoneyCents(selectedYear.startBalanceCents)}</strong>
           </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Plus size={20} /></div>
-            <div>
-              <h3>Inkomsten</h3>
-              <p>{formatMoneyCents(totals.incomeCents)}</p>
-            </div>
+          <article>
+            <span>Inkomsten</span>
+            <strong>{formatMoneyCents(totals.incomeCents)}</strong>
           </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><ShoppingBasket size={20} /></div>
-            <div>
-              <h3>Uitgaven</h3>
-              <p>{formatMoneyCents(totals.outCents)}</p>
-            </div>
+          <article>
+            <span>Uitgaven</span>
+            <strong class="negative">{formatMoneyCents(totals.outCents)}</strong>
           </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><CheckCircle2 size={20} /></div>
-            <div>
-              <h3>Eindsaldo</h3>
-              <p>{formatMoneyCents(totals.endCents)}</p>
-            </div>
+          <article>
+            <span>Eindsaldo</span>
+            <strong>{formatMoneyCents(totals.endCents)}</strong>
           </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Clock size={20} /></div>
-            <div>
-              <h3>Projectie {selectedYear.year + 1}</h3>
-              <p>{projectedMonthCount()} maand{projectedMonthCount() === 1 ? "" : "en"} klaargezet als basis voor volgend jaar.</p>
-            </div>
+          <article>
+            <span>Projectie {selectedYear.year + 1}</span>
+            <strong>{projectedMonthCount()} maand{projectedMonthCount() === 1 ? "" : "en"}</strong>
           </article>
         </section>
         <section class="settings-block overview-print-area" aria-label="Maandoverzicht">
@@ -1644,9 +1619,9 @@
           <p>Kies rustig wat je wil aanpassen. Elke instelling blijft op zijn eigen pagina.</p>
         </header>
         <nav class="settings-tabs" aria-label="Instellingen onderdelen">
-          <button class:active={activeSettingsTab === "data"} type="button" aria-pressed={activeSettingsTab === "data"} onclick={() => (activeSettingsTab = "data")}>{settingsTabLabels.data}</button>
           <button class:active={activeSettingsTab === "categories"} type="button" aria-pressed={activeSettingsTab === "categories"} onclick={() => (activeSettingsTab = "categories")}>{settingsTabLabels.categories}</button>
           <button class:active={activeSettingsTab === "rules"} type="button" aria-pressed={activeSettingsTab === "rules"} onclick={() => (activeSettingsTab = "rules")}>{settingsTabLabels.rules}</button>
+          <button class:active={activeSettingsTab === "data"} type="button" aria-pressed={activeSettingsTab === "data"} onclick={() => (activeSettingsTab = "data")}>{settingsTabLabels.data}</button>
         </nav>
 
         {#if activeSettingsTab === "data"}
@@ -1963,223 +1938,171 @@
             </section>
           </section>
         {/if}
-      {:else if activeView === "edit"}
+      {:else}
         <header>
-          <h2>Bewerken</h2>
-          <p>Beheer de structuur achter de maandkaarten zonder in de jaarweergave te zoeken.</p>
+          <h2>Back-up</h2>
+          <p>Herstel, export en wijzigingen staan samen, zodat onderhoud niet meer door het jaarblad loopt.</p>
         </header>
-        <section class="menu-card-grid" aria-label="Bewerkopties">
-          <article class="menu-card">
-            <div class="menu-card-icon"><Settings size={20} /></div>
-            <div>
-              <h3>Categorieen beheren</h3>
-              <p>{configuredSubcategoryCount()} actieve subcategorieen staan klaar onder inkomsten, vaste kosten en variabele kosten.</p>
+        <nav class="settings-tabs" aria-label="Back-up onderdelen">
+          <button class:active={activeBackupTab === "backup"} type="button" aria-pressed={activeBackupTab === "backup"} onclick={() => (activeBackupTab = "backup")}>{backupTabLabels.backup}</button>
+          <button class:active={activeBackupTab === "changes"} type="button" aria-pressed={activeBackupTab === "changes"} onclick={() => (activeBackupTab = "changes")}>{backupTabLabels.changes}</button>
+        </nav>
+
+        {#if activeBackupTab === "backup"}
+          <section class="settings-block" aria-label="Back-up en herstel">
+            <header>
+              <div>
+                <h3>Back-up en herstel</h3>
+                <p>Leesbare bestanden, gescheiden leermodus en echte modus, en een snelle modelcontrole.</p>
+              </div>
+              {#if safetyMessage}
+                <span class="settings-message" role="status">{safetyMessage}</span>
+              {/if}
+            </header>
+            <div class="backup-action-list">
+              <article class="backup-action-row">
+                <FileCheck size={18} />
+                <div>
+                  <strong>Gegevenscontrole</strong>
+                  <span>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</span>
+                </div>
+                <button type="button" class="inline-action" onclick={runSafetyCheck}>Controle uitvoeren</button>
+              </article>
+              <article class="backup-action-row">
+                <Download size={18} />
+                <div>
+                  <strong>Back-up maken</strong>
+                  <span>Download een leesbaar JSON-bestand van de huidige modus.</span>
+                </div>
+                <button type="button" class="inline-action" onclick={exportBackup}>Maak back-up</button>
+              </article>
+              <article class="backup-action-row">
+                <Upload size={18} />
+                <div>
+                  <strong>Back-up terugzetten</strong>
+                  <span>Kies een Abacus JSON-bestand. De app controleert het bestand eerst.</span>
+                </div>
+                <button type="button" class="inline-action" onclick={chooseRestoreFile}>Kies bestand</button>
+                <input bind:this={restoreInput} class="hidden-file-input" type="file" accept="application/json,.json" onchange={restoreBackup} />
+              </article>
+              <article class="backup-action-row danger-row">
+                <Shield size={18} />
+                <div>
+                  <strong>Opnieuw starten</strong>
+                  <span>Vervang alleen de huidige modus door een verse start. Maak eerst een back-up als je twijfelt.</span>
+                </div>
+                <button type="button" class="inline-action danger-action" onclick={resetCurrentMode}>Start opnieuw</button>
+              </article>
+              <article class="backup-action-row passive">
+                <CheckCircle2 size={18} />
+                <div>
+                  <strong>Lokale opslag</strong>
+                  <span>{appMode === "demo" ? "Leermodus gebruikt eigen lokale opslag." : "Echte modus gebruikt eigen lokale opslag."} Status: {saveStatus.toLowerCase()}.</span>
+                </div>
+              </article>
+              <article class="backup-action-row passive">
+                <Lock size={18} />
+                <div>
+                  <strong>Gescheiden modi</strong>
+                  <span>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</span>
+                </div>
+              </article>
             </div>
-            <button type="button" class="inline-action" onclick={() => openSettingsTab("categories")}>Open categorieen</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><RotateCcw size={20} /></div>
-            <div>
-              <h3>Vaste regels beheren</h3>
-              <p>{activeRuleCount()} actieve regels vullen het voorbeeldjaar automatisch aan.</p>
-            </div>
-            <button type="button" class="inline-action" onclick={() => openSettingsTab("rules")}>Open vaste regels</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><CalendarDays size={20} /></div>
-            <div>
-              <h3>Gegevensmodus</h3>
-              <p>{appMode === "demo" ? "Leermodus is actief. Je werkt in de fictieve begroting 2026." : "Echte modus is actief. Deze gegevens staan apart van leermodus."}</p>
-            </div>
-            <button type="button" class="inline-action" onclick={() => openSettingsTab("data")}>Open gegevens</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Trash2 size={20} /></div>
-            <div>
-              <h3>Opnieuw starten</h3>
-              <p>Vervang alleen de huidige modus door een verse start. Maak eerst een back-up als je twijfelt.</p>
-            </div>
-            <button type="button" class="inline-action danger-action" onclick={resetCurrentMode}>Start opnieuw</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><History size={20} /></div>
-            <div>
-              <h3>Ongedaan maken</h3>
-              <p>{undoStack.length} stap{undoStack.length === 1 ? "" : "pen"} terug, {redoStack.length} stap{redoStack.length === 1 ? "" : "pen"} opnieuw beschikbaar.</p>
-            </div>
-            <div class="menu-card-actions">
-              <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan</button>
-              <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw</button>
-            </div>
-          </article>
-        </section>
-        <section class="settings-block" aria-label="Bewerkstatus">
-          <header>
-            <div>
-              <h3>Wat staat er nu in dit jaar?</h3>
-              <p>Een snelle controle voordat je categorieen of regels aanpast.</p>
-            </div>
+          </section>
+          <section class="settings-block" aria-label="Controlelijst veiligheid">
+            <header>
+              <div>
+                <h3>Controlelijst</h3>
+                <p>Deze controle kijkt of het huidige boek past bij het gegevensmodel.</p>
+              </div>
+            </header>
+            {#if validationIssues.length === 0}
+              <div class="empty-state">
+                <CheckCircle2 size={18} />
+                <span>Alles wat nu in het boek zit, past bij het huidige gegevensmodel.</span>
+              </div>
+            {:else}
+              <ul class="issue-list">
+                {#each validationIssues as issue}
+                  <li>{issue}</li>
+                {/each}
+              </ul>
+            {/if}
+          </section>
+        {:else}
+          <section class="settings-block" aria-label="Wijzigingen">
+            <header>
+              <div>
+                <h3>Wijzigingen</h3>
+                <p>Acties die je vanaf deze versie doet, komen hier bovenaan te staan.</p>
+              </div>
+              <div class="history-actions">
+                <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan maken</button>
+                <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw doen</button>
+              </div>
+            </header>
             {#if undoMessage}
               <span class="settings-message" role="status">{undoMessage}</span>
             {/if}
-          </header>
-          <div class="status-tile-grid">
-            <div class="status-tile"><span>Boekingen</span><strong>{totalEntryCount()}</strong></div>
-            <div class="status-tile"><span>Handmatig</span><strong>{manualEntryCount()}</strong></div>
-            <div class="status-tile"><span>Vaste regels</span><strong>{book.recurringRules.length}</strong></div>
-            <div class="status-tile"><span>Eindsaldo</span><strong>{formatMoneyCents(totals.endCents)}</strong></div>
-          </div>
-        </section>
-      {:else if activeView === "safety"}
-        <header>
-          <h2>Veiligheid</h2>
-          <p>Maak een leesbare back-up, zet een gecontroleerd bestand terug, en kijk of de gegevens gezond zijn.</p>
-        </header>
-        <section class="menu-card-grid" aria-label="Veiligheidsstatus">
-          <article class="menu-card">
-            <div class="menu-card-icon"><FileCheck size={20} /></div>
-            <div>
-              <h3>Gegevenscontrole</h3>
-              <p>{validationIssues.length === 0 ? "Geen modelproblemen gevonden." : `${validationIssues.length} aandachtspunt${validationIssues.length === 1 ? "" : "en"} gevonden.`}</p>
-            </div>
-            <button type="button" class="inline-action" onclick={runSafetyCheck}>Controle uitvoeren</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><CheckCircle2 size={20} /></div>
-            <div>
-              <h3>Lokale opslag</h3>
-              <p>{appMode === "demo" ? "Leermodus gebruikt eigen lokale opslag." : "Echte modus gebruikt eigen lokale opslag."} Status: {saveStatus.toLowerCase()}.</p>
-            </div>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Lock size={20} /></div>
-            <div>
-              <h3>Gescheiden modi</h3>
-              <p>Leren en Echt blijven apart, zodat testen de echte gegevens niet overschrijft.</p>
-            </div>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Download size={20} /></div>
-            <div>
-              <h3>Back-up maken</h3>
-              <p>Download een leesbaar JSON-bestand van de huidige modus. Dit is handig voor herstel of analyse.</p>
-            </div>
-            <button type="button" class="inline-action" onclick={exportBackup}>Maak back-up</button>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Upload size={20} /></div>
-            <div>
-              <h3>Back-up terugzetten</h3>
-              <p>Kies een Abacus JSON-bestand. De app controleert het bestand voordat het lokale boek wordt vervangen.</p>
-            </div>
-            <button type="button" class="inline-action" onclick={chooseRestoreFile}>Kies bestand</button>
-            <input bind:this={restoreInput} class="hidden-file-input" type="file" accept="application/json,.json" onchange={restoreBackup} />
-          </article>
-        </section>
-        <section class="settings-block" aria-label="Controlelijst veiligheid">
-          <header>
-            <div>
-              <h3>Controlelijst</h3>
-              <p>Deze controle kijkt of het huidige boek past bij het gegevensmodel.</p>
-            </div>
-            {#if safetyMessage}
-              <span class="settings-message" role="status">{safetyMessage}</span>
+            {#if visibleHistoryEvents.length === 0}
+              <div class="empty-state">
+                <Clock size={18} />
+                <span>Nog geen wijzigingen geregistreerd sinds deze functie actief is.</span>
+              </div>
+            {:else}
+              <div class="event-list">
+                {#each visibleHistoryEvents as event}
+                  <article class="event-row">
+                    <span>{formatHistoryTime(event.timestamp)}</span>
+                    <strong>{event.title}</strong>
+                    <span>{event.detail}</span>
+                    <small>{event.mode === "demo" ? "Leren" : "Echt"}</small>
+                  </article>
+                {/each}
+              </div>
             {/if}
-          </header>
-          {#if validationIssues.length === 0}
-            <div class="empty-state">
-              <CheckCircle2 size={18} />
-              <span>Alles wat nu in het boek zit, past bij het huidige gegevensmodel.</span>
-            </div>
-          {:else}
-            <ul class="issue-list">
-              {#each validationIssues as issue}
-                <li>{issue}</li>
-              {/each}
-            </ul>
-          {/if}
-        </section>
-      {:else}
-        <header>
-          <h2>Historiek</h2>
-          <p>Een rustig overzicht van recente boekingen, nieuwe acties en herstelstappen.</p>
-        </header>
-        <section class="settings-block" aria-label="Recente boekingen">
-          <header>
-            <div>
-              <h3>Recente boekingen</h3>
-              <p>De nieuwste regels bovenaan, inclusief automatisch aangemaakte vaste regels.</p>
-            </div>
-          </header>
-          {#if recentEntries.length === 0}
-            <div class="empty-state">
-              <Clock size={18} />
-              <span>Er zijn nog geen boekingen in dit jaar.</span>
-            </div>
-          {:else}
-            <div class="history-list">
-              {#each recentEntries as item}
-                <article class="history-row">
-                  <span>{formatEntryDate(item.entry.date)}</span>
-                  <strong>{monthName(item.monthNumber)}</strong>
-                  <span>{item.sectionLabel}</span>
-                  <span>{item.entry.party || "Geen partij"}</span>
-                  <span>{item.entry.description}</span>
-                  <strong>{formatMoneyCents(item.entry.amountCents ?? 0)}</strong>
-                  <small>{item.isRecurring ? "Vaste regel" : "Handmatig"}</small>
-                </article>
-              {/each}
-            </div>
-          {/if}
-        </section>
-        <section class="settings-block" aria-label="Wijzigingen">
-          <header>
-            <div>
-              <h3>Wijzigingen vanaf nu</h3>
-              <p>Acties die je vanaf deze versie doet, komen hier bovenaan te staan.</p>
-            </div>
-            <div class="history-actions">
-              <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan maken</button>
-              <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw doen</button>
-            </div>
-          </header>
-          {#if undoMessage}
-            <span class="settings-message" role="status">{undoMessage}</span>
-          {/if}
-          {#if visibleHistoryEvents.length === 0}
-            <div class="empty-state">
-              <Clock size={18} />
-              <span>Nog geen wijzigingen geregistreerd sinds deze functie actief is.</span>
-            </div>
-          {:else}
-            <div class="event-list">
-              {#each visibleHistoryEvents as event}
-                <article class="event-row">
-                  <span>{formatHistoryTime(event.timestamp)}</span>
-                  <strong>{event.title}</strong>
-                  <span>{event.detail}</span>
-                  <small>{event.mode === "demo" ? "Leren" : "Echt"}</small>
-                </article>
-              {/each}
-            </div>
-          {/if}
-        </section>
-        <section class="menu-card-grid" aria-label="Historiek samenvatting">
-          <article class="menu-card">
-            <div class="menu-card-icon"><History size={20} /></div>
-            <div>
-              <h3>Wijzigingen</h3>
-              <p>Nieuwe acties worden gelogd. Ongedaan maken en opnieuw doen zijn beschikbaar voor recente wijzigingen.</p>
-            </div>
-          </article>
-          <article class="menu-card">
-            <div class="menu-card-icon"><Coins size={20} /></div>
-            <div>
-              <h3>Jaarstand</h3>
-              <p>Start {formatMoneyCents(selectedYear.startBalanceCents)} en eind {formatMoneyCents(totals.endCents)}.</p>
-            </div>
-          </article>
-        </section>
+          </section>
+          <section class="settings-block" aria-label="Recente boekingen">
+            <header>
+              <div>
+                <h3>Recente boekingen</h3>
+                <p>De nieuwste regels bovenaan, inclusief automatisch aangemaakte vaste regels.</p>
+              </div>
+            </header>
+            {#if recentEntries.length === 0}
+              <div class="empty-state">
+                <Clock size={18} />
+                <span>Er zijn nog geen boekingen in dit jaar.</span>
+              </div>
+            {:else}
+              <div class="history-list">
+                {#each recentEntries as item}
+                  <article class="history-row">
+                    <span>{formatEntryDate(item.entry.date)}</span>
+                    <strong>{monthName(item.monthNumber)}</strong>
+                    <span>{item.sectionLabel}</span>
+                    <span>{item.entry.party || "Geen partij"}</span>
+                    <span>{item.entry.description}</span>
+                    <strong>{formatMoneyCents(item.entry.amountCents ?? 0)}</strong>
+                    <small>{item.isRecurring ? "Vaste regel" : "Handmatig"}</small>
+                  </article>
+                {/each}
+              </div>
+            {/if}
+          </section>
+          <section class="settings-block" aria-label="Herstelstappen">
+            <header>
+              <div>
+                <h3>Herstelstappen</h3>
+                <p>{undoStack.length} stap{undoStack.length === 1 ? "" : "pen"} terug en {redoStack.length} stap{redoStack.length === 1 ? "" : "pen"} opnieuw beschikbaar.</p>
+              </div>
+              <div class="history-actions">
+                <button type="button" class="inline-action" disabled={undoStack.length === 0} onclick={undoLastChange}>Ongedaan</button>
+                <button type="button" class="inline-action" disabled={redoStack.length === 0} onclick={redoLastChange}>Opnieuw</button>
+              </div>
+            </header>
+          </section>
+        {/if}
       {/if}
     </section>
   {:else}
@@ -2225,7 +2148,7 @@
         data-month-card={month.month}
         style={monthThemeStyle(month.month)}
         onclick={(event) => selectCardFromClick(event, month.month)}
-        onfocusin={() => activateMonthForInput(month.month)}
+        onfocusin={(event) => activateMonthForFocus(event, month.month)}
         onkeydown={(event) => selectCardFromKey(event, month.month)}
         role="button"
         tabindex="0"

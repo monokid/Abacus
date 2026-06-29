@@ -283,8 +283,10 @@ async function fillIncomeWithParty(page) {
 }
 
 async function editIncomeRow(page) {
-  await page.getByLabel("Regel bewerken: Inkomen met partij rooktest").click();
-  const editRow = page.locator('[data-testid^="edit-demo-9-inkomsten-"]');
+  const card = page.locator('[data-month-card="9"]');
+  await card.getByLabel("Regel bewerken: Inkomen met partij rooktest").click();
+  const editRow = card.locator(".edit-row").first();
+  await editRow.waitFor({ state: "visible", timeout: 5_000 });
   await expectEditRowsContained(page, "inkomstenregel bewerken");
   await captureScreenshot(page, "05-edit-income-row.png");
   await editRow.locator('input[aria-label^="Partij bewerken"]').fill("Pensioenfonds aangepast");
@@ -420,7 +422,7 @@ async function openDraft(page, monthNumber, section, subcategoryId, label) {
 }
 
 async function expectMonthLockBlocksEditing(page) {
-  await page.locator(".app-header").getByRole("button", { name: "Jaar", exact: true }).click();
+  await page.locator(".app-header").getByRole("button", { name: "Jaarblad", exact: true }).click();
   await navigateToMonth(page, 8);
   await expectActiveMonthVisible(page, 8);
 
@@ -463,7 +465,7 @@ async function expectMonthLockBlocksEditing(page) {
 }
 
 async function expectRemainingMenusFunctional(page) {
-  await page.locator(".header-actions").getByRole("button", { name: /Overzicht/ }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Overzicht" }).click();
   await expectVisibleText(page, "Jaaroverzicht");
   await expectVisibleText(page, "Maanden");
   await captureScreenshot(page, "17-overview-page.png");
@@ -474,12 +476,13 @@ async function expectRemainingMenusFunctional(page) {
     throw new Error(`Overzicht-download heeft onverwachte naam: ${download.suggestedFilename()}`);
   }
 
-  await page.getByRole("button", { name: "Veiligheid" }).click();
-  await expectVisibleText(page, "Veiligheid");
+  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.getByRole("button", { name: "Back-up en herstel" }).click();
+  await expectVisibleText(page, "Back-up en herstel");
   await page.getByRole("button", { name: "Controle uitvoeren" }).click();
   await expectVisibleText(page, "Controle uitgevoerd");
 
-  await page.locator(".app-header").getByRole("button", { name: "Jaar", exact: true }).click();
+  await page.locator(".app-header").getByRole("button", { name: "Jaarblad", exact: true }).click();
   await navigateToMonth(page, 8);
   const card = page.locator('[data-month-card="8"]');
   if ((await card.getByLabel("Maand controleren").count()) > 0) {
@@ -676,7 +679,9 @@ async function expectUnifiedLedgerGrid(page, label) {
 async function expectEditRowsContained(page, label) {
   const issues = await page.evaluate(() => {
     const tolerance = 1;
-    return Array.from(document.querySelectorAll(".edit-row")).flatMap((row, index) => {
+    const rows = Array.from(document.querySelectorAll(".edit-row"));
+    if (rows.length === 0) return ["Geen bewerkrij geopend."];
+    return rows.flatMap((row, index) => {
       const card = row.closest(".month-card");
       if (!card) return [`Bewerkrij ${index + 1}: geen maandkaart gevonden.`];
 
@@ -852,7 +857,6 @@ async function expectOtherMonthButtonCentersCard(page, monthNumber) {
   );
   await expectActiveMonthVisible(page, monthNumber);
   await expectActiveCardCenteredEnough(page, monthNumber);
-  await card.getByLabel("Bewerken annuleren").click();
 }
 
 async function expectMonthCardFocused(page, monthNumber) {
@@ -962,14 +966,14 @@ async function expectCompactTopUi(page) {
   const issue = await page.evaluate(() => {
     const firstCard = document.querySelector(".month-card");
     const monthTabs = document.querySelector('[data-testid="month-tabs"]');
-    const primaryAction = document.querySelector(".primary-action");
     const yearMenuCard = document.querySelector(".year-menu-card");
     const header = document.querySelector(".app-header");
     const toolbar = document.querySelector(".toolbar");
     if (!(firstCard instanceof HTMLElement) || !(monthTabs instanceof HTMLElement)) return "Maandkaart of maandbalk ontbreekt.";
-    if (!(primaryAction instanceof HTMLElement)) return "Overzichtknop ontbreekt.";
     if (!(yearMenuCard instanceof HTMLElement)) return "Jaarkaart in het menu ontbreekt.";
     if (!(header instanceof HTMLElement) || !(toolbar instanceof HTMLElement)) return "Header of navigatie ontbreekt.";
+    if (document.querySelector(".primary-action")) return "Oude losse Overzichtknop staat nog rechts in de header.";
+    if (!Array.from(toolbar.querySelectorAll("button")).some((button) => button.textContent?.includes("Overzicht"))) return "Overzicht ontbreekt in het hoofdmenu.";
     if (yearMenuCard.parentElement !== header) return "Jaarkaart staat niet in de header.";
     const children = Array.from(header.children);
     if (children.indexOf(yearMenuCard) > children.indexOf(toolbar)) return "Jaarkaart staat rechts van de hoofdnavigatie.";
@@ -984,9 +988,6 @@ async function expectCompactTopUi(page) {
     if (tabsBottom > 150) return `Maandbalk staat te laag (${Math.round(tabsBottom)}px).`;
     if (firstCardTop > 230) return `Maandkaarten beginnen te laag (${Math.round(firstCardTop)}px).`;
     if (document.documentElement.scrollWidth > window.innerWidth + 1) return "Pagina heeft horizontale overloop in de topinterface.";
-
-    const actionRect = primaryAction.getBoundingClientRect();
-    if (actionRect.right > window.innerWidth + 1 || actionRect.left < -1) return "Overzichtknop is niet volledig zichtbaar.";
 
     return "";
   });
@@ -1007,17 +1008,21 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await page.getByRole("button", { name: "Instellingen" }).click();
   await expectVisibleText(page, "Instellingen");
   await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
-  for (const label of ["Bewerken", "Veiligheid", "Historiek"]) {
-    await page.getByRole("button", { name: label }).click();
-    await expectVisibleText(page, label);
-    await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
+  for (const removedLabel of ["Bewerken", "Veiligheid", "Historiek"]) {
+    if ((await page.locator(".toolbar").getByRole("button", { name: removedLabel }).count()) > 0) {
+      throw new Error(`${removedLabel} staat nog als hoofdmenu.`);
+    }
   }
-  await page.getByRole("button", { name: "Bewerken" }).click();
-  await expectVisibleText(page, "Categorieen beheren");
-  await expectVisibleText(page, "Vaste regels beheren");
-  await page.getByRole("button", { name: "Open categorieen" }).click();
+  await expectVisibleText(page, "Categorieen");
+  await page.getByRole("button", { name: "Vaste regels" }).click();
+  await expectVisibleText(page, "Vaste regels");
+  await page.getByRole("button", { name: "Gegevens" }).click();
+  await expectVisibleText(page, "Gegevensmodus");
+  await page.getByRole("button", { name: "Categorieen" }).click();
   await expectVisibleText(page, "Beheer de subcategorieen");
-  await page.getByRole("button", { name: "Veiligheid" }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.getByRole("button", { name: "Back-up en herstel" }).click();
+  await expectVisibleText(page, "Back-up en herstel");
   await expectVisibleText(page, "Gegevenscontrole");
   await expectVisibleText(page, "Controlelijst");
   await expectVisibleText(page, "Back-up maken");
@@ -1030,11 +1035,11 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await writeFile(restorePath, backupPayload, "utf8");
   await page.locator(".hidden-file-input").setInputFiles(restorePath);
   await expectVisibleText(page, "teruggezet in leermodus");
-  await page.getByRole("button", { name: "Historiek" }).click();
+  await page.getByRole("button", { name: "Wijzigingen" }).click();
   await expectVisibleText(page, "Recente boekingen");
-  await expectVisibleText(page, "Wijzigingen vanaf nu");
+  await expectVisibleText(page, "Wijzigingen");
   await expectVisibleText(page, "Vaste regel");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
 }
 
@@ -1269,7 +1274,7 @@ async function expectModeSwitchSeparatesDemo(page) {
 
   await page.getByRole("button", { name: "Leren" }).click();
   await expectVisibleText(page, "Leermodus");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await expectVisibleText(page, "Pensioendienst");
 
   const issue = await page.evaluate(({ demoKey, productionKey, modeKey }) => {
@@ -1284,7 +1289,7 @@ async function expectModeSwitchSeparatesDemo(page) {
   await page.getByRole("button", { name: "Instellingen" }).click();
   await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await expectHiddenText(page, "Gegevensmodus");
 }
 
@@ -1298,7 +1303,7 @@ async function expectCategorySettingsManagement(page) {
   await expectVisibleText(page, "Apotheek Extra toegevoegd");
   await expectVisibleText(page, "0 boekingen");
 
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 6);
   await expectVisibleText(page, "Apotheek Extra");
   await openDraft(page, 6, "variabele_kosten", "sub-variabele-apotheek-extra", "Apotheek Extra");
@@ -1335,7 +1340,7 @@ async function expectRecurringRuleSettings(page) {
   await page.getByLabel("Vaste regel toevoegen").click();
   await expectVisibleText(page, "Waterfilter rooktest toegevoegd en toegepast");
 
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 1);
   await expectVisibleText(page, "Waterfilter rooktest");
   await expectVisibleText(page, "15,25");
@@ -1344,7 +1349,7 @@ async function expectRecurringRuleSettings(page) {
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await page.getByLabel("Regel actief: Waterfilter rooktest").uncheck();
   await expectVisibleText(page, "Regel toegepast op het jaar");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 1);
   await expectHiddenText(page, "Waterfilter rooktest");
 
@@ -1362,33 +1367,35 @@ async function expectRecurringRuleSettings(page) {
   await page.getByLabel("Vaste regel toevoegen").click();
   await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
 
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 1);
   await expectMonthCardHiddenText(page, 1, "Eenmalige rooktest");
   await navigateToMonth(page, 7);
   await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
   await expectMonthCardVisibleText(page, 7, "44,00");
 
-  await page.getByRole("button", { name: "Historiek" }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.getByRole("button", { name: "Wijzigingen" }).click();
   await expectVisibleText(page, "Vaste regel toegevoegd");
   await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
   await page.getByRole("button", { name: "Ongedaan maken" }).click();
   await expectVisibleText(page, "Ongedaan gemaakt");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 7);
   await expectMonthCardHiddenText(page, 7, "Eenmalige rooktest");
 
-  await page.getByRole("button", { name: "Historiek" }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.getByRole("button", { name: "Wijzigingen" }).click();
   await page.getByRole("button", { name: "Opnieuw doen" }).click();
   await expectVisibleText(page, "Opnieuw gedaan");
-  await page.getByRole("button", { name: "Jaar" }).click();
+  await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 7);
   await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
 }
 
 async function expectTooltips(page) {
   const issue = await page.evaluate(() => {
-    const selectors = [".brand", ".tool", ".icon-button", ".primary-action", ".month-tools button", ".subcategory-add", ".entry-row button"];
+    const selectors = [".brand", ".tool", ".icon-button", ".month-tools button", ".subcategory-add", ".entry-row button"];
     for (const selector of selectors) {
       const elements = Array.from(document.querySelectorAll(selector)).filter((element) => {
         if (!(element instanceof HTMLElement)) return false;
