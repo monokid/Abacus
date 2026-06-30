@@ -48,6 +48,7 @@ Deliverables:
 - Data model.
 - Fictional sample year.
 - Section-scoped subcategory model.
+- Integer-cent money model.
 - Money parsing/formatting for `nl-BE`.
 - Month and year calculations.
 - Carry-forward logic.
@@ -60,6 +61,7 @@ Exit criteria:
 - Test data is fictional.
 - Model leaves room for future Excel import.
 - Subcategories can be represented without breaking top-level section calculations.
+- Calculations use integer cents, with blank amounts preserved as `null`.
 
 ## Milestone 3: Barebones Month Prototype
 
@@ -125,6 +127,7 @@ Goal: deliver a portable Windows build for hands-on testing.
 Deliverables:
 
 - Portable Windows executable.
+- Copyable test package while the executable is still being stabilized.
 - Fictional data mode.
 - Basic local persistence.
 - Clear known-gaps list.
@@ -134,9 +137,68 @@ Exit criteria:
 - User can test it like the old Electron app.
 - Feedback is captured before expanding scope.
 
-## Milestone 7: Feature Parity Pass
+## Milestone 7A: Navigation And Management Structure
 
-Goal: work through the parity checklist.
+Goal: make the app understandable before adding more power.
+
+Deliverables:
+
+- Separate top-level areas for Jaarblad, Overzicht, Inzichten, Beheer, Veiligheid, and
+  Instellingen.
+- Beheer tabs for Categorieen, Partijen, Labels, and Vaste regels.
+- Instellingen limited to app behavior such as learning mode, production mode, theme, and
+  storage information.
+- Veiligheid limited to backups, restore, validation, undo, redo, and change history.
+- Smoke tests that verify the menu areas stay compact and do not compress the month board.
+
+Exit criteria:
+
+- A new tester can predict where categories, parties, labels, rules, safety, and app mode
+  live.
+- The father-facing year board remains the primary surface.
+
+## Milestone 7B: Parties, Labels, And Autocomplete
+
+Goal: make repeated text consistent across the app.
+
+Deliverables:
+
+- Managed parties.
+- Managed labels.
+- Party autocomplete in the month grid.
+- Label/description autocomplete in the month grid.
+- Party and label suggestions in recurring-rule setup.
+- Add-from-typing behavior.
+- Rename/hide behavior that preserves historical entries.
+
+Exit criteria:
+
+- The same party/label can be reused in entries and rules without retyping.
+- Renaming a managed value updates current editable data safely.
+- Smoke tests cover autocomplete in grid and recurring rules.
+
+## Milestone 7C: Insights And Reports First Pass
+
+Goal: add read-only checking views before formal export.
+
+Deliverables:
+
+- Insights page.
+- Totals per section, subcategory, party, and label.
+- Month-difference checks.
+- Open amount checks.
+- Projection status.
+- Print-friendly year overview improvements.
+
+Exit criteria:
+
+- User can answer basic questions such as "waar gaat het geld naartoe?" without editing
+  the year board.
+- Insights do not make the main interface busier.
+
+## Milestone 7D: Feature Parity Pass
+
+Goal: work through the remaining parity checklist.
 
 Feature groups:
 

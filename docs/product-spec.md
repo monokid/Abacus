@@ -87,10 +87,89 @@ Subcategory requirements:
 - Deleting or hiding a subcategory should not delete rows.
 - Future Excel import must be able to map old spreadsheet labels/blocks into this model.
 
+Row field requirements:
+
+- Inkomsten, Vaste kosten, and Variabele kosten all support a `partij` field.
+- The income UI may use a softer label later if that reads better in Dutch, but the data
+  model should not treat income rows as party-less.
+- Recurring-rule setup must allow `partij` for income rules as well as expense rules.
+
+## Parties And Labels
+
+The app needs managed suggestions for repeated text. This should make typing feel like
+Excel with memory, while keeping names consistent across the year.
+
+Parties are recurring people, shops, services, banks, governments, or organizations such
+as `Pensioendienst`, `Telenet`, `Luminus`, `Mutualiteit`, `Aldi`, `Spar`, and `Cash`.
+
+Party requirements:
+
+- A party can be used in normal grid entries and recurring rules.
+- Party suggestions should autocomplete while typing.
+- Creating a new party from typing should be possible without leaving the grid.
+- Renaming a party should update entries and recurring rules that use it.
+- Hiding a party should remove it from suggestions without changing historical entries.
+- Future Excel import should map repeated spreadsheet names into managed parties.
+
+Labels are managed descriptions or tags such as `Pensioen`, `HH`, `Aldi`, `Spar`,
+`Nespresso`, `HOSPI+`, `belasting`, or `controle nodig`.
+
+Label requirements:
+
+- Labels should autocomplete in the grid and recurring-rule setup.
+- Labels should support reporting and filtering later.
+- Labels are separate from subcategories: a subcategory decides where a row lives, a label
+  describes what kind of row it is.
+- The first implementation may treat labels as one managed description per row; a later
+  version can support multiple tags per row if that proves useful.
+- Renaming or hiding a label should not delete historical entries.
+
+The main management surface for this belongs under `Beheer`, not under general app
+settings.
+
+## Insights And Reports
+
+Insights should be separated from settings and from the year-entry surface. They are for
+reading and checking, not for editing.
+
+First insights:
+
+- Totals per top-level section.
+- Totals and counts per subcategory.
+- Totals and counts per party.
+- Totals and counts per label.
+- Month differences and negative months.
+- Open/blank amounts.
+- Locked versus open months.
+- Projection status for the next year.
+
+Later reporting:
+
+- Printable year overview.
+- PDF export.
+- Excel export.
+- Year comparison.
+- Filters by party, label, category, and month range.
+
+## Money Model
+
+The core data model stores money as integer cents:
+
+- Year opening balances use `startBalanceCents`.
+- Entry amounts use `amountCents`.
+- Recurring rule defaults use `amountCents`.
+- Blank editable amounts are stored as `null`, never as `0`.
+
+This keeps calculations robust and avoids floating-point rounding drift. Backups remain
+plain JSON and readable: a value such as `123456` means `1234,56 EUR`. Display, Excel
+export, PDF export, and import adapters convert between cents and user-facing euro
+formats at the boundary.
+
 ## Functional Non-Negotiables
 
 - UI is 100% Dutch.
 - Empty amount stays empty. It is never displayed or stored as typed zero.
+- Money is stored as integer cents in the core and persisted JSON.
 - Input commits on blur.
 - Tab, Enter, Escape, and click-away behavior must be predictable.
 - While typing, the view must not jump, scroll unexpectedly, or move focus.
