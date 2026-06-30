@@ -172,6 +172,7 @@
   const today = new Date();
 
   let book = $state(initialBook);
+  let activeYearValue = $state(initialBook.years[0]?.year ?? today.getFullYear());
   let appMode = $state<AppMode>("demo");
   let activeView = $state<AppView>("year");
   let activeManageTab = $state<ManageTab>("categories");
@@ -209,8 +210,9 @@
   let undoMessage = $state("");
   let restoreInput: HTMLInputElement | null = $state(null);
 
+  const availableYears = $derived.by(() => [...book.years].filter((year) => !year.trashed).sort((left, right) => left.year - right.year));
   const selectedYear = $derived.by(() => {
-    const year = book.years[0];
+    const year = availableYears.find((item) => item.year === activeYearValue) ?? availableYears[0];
     if (!year) throw new Error("Geen voorbeeldjaar gevonden.");
     return year;
   });
@@ -273,6 +275,7 @@
         if (issues.length === 0) {
           const readyBook = ensurePlanningYear(parsedBook);
           book = readyBook;
+          syncActiveYearWithBook(readyBook);
           drafts = createDrafts(readyBook);
           expandedDraftKey = null;
           saveStatus = "Lokaal geladen";
@@ -287,6 +290,7 @@
 
     const readyFallback = ensurePlanningYear(fallbackBook);
     book = readyFallback;
+    syncActiveYearWithBook(readyFallback);
     drafts = createDrafts(readyFallback);
     expandedDraftKey = null;
   }
@@ -347,6 +351,7 @@
   function restoreBookSnapshot(snapshotBook: Book): void {
     book = ensurePlanningYear(cloneBook(snapshotBook));
     syncRecurringEntriesForBook(book);
+    syncActiveYearWithBook(book);
     drafts = createDrafts(book);
     expandedDraftKey = null;
     editingEntryId = null;
@@ -532,6 +537,29 @@
     requestAnimationFrame(() => selectMonth(activeMonth));
   }
 
+  function syncActiveYearWithBook(sourceBook: Book, preferredYear = activeYearValue): void {
+    const years = [...sourceBook.years].filter((year) => !year.trashed).sort((left, right) => left.year - right.year);
+    activeYearValue = years.find((year) => year.year === preferredYear)?.year ?? years[0]?.year ?? today.getFullYear();
+  }
+
+  function selectYear(yearNumber: number): void {
+    if (!availableYears.some((year) => year.year === yearNumber)) return;
+    activeYearValue = yearNumber;
+    activeView = "year";
+    activeMonth = yearNumber === today.getFullYear() ? today.getMonth() + 1 : 1;
+    expandedDraftKey = null;
+    editingEntryId = null;
+    deleteConfirmEntryId = null;
+    editDraft = emptyDraft();
+    requestAnimationFrame(() => selectMonth(activeMonth));
+  }
+
+  function selectAdjacentYear(direction: -1 | 1): void {
+    const index = availableYears.findIndex((year) => year.year === selectedYear.year);
+    const next = availableYears[index + direction];
+    if (next) selectYear(next.year);
+  }
+
   function ensurePlanningYear(sourceBook: Book): Book {
     const baseYear = sourceBook.years[0];
     if (!baseYear) return sourceBook;
@@ -661,21 +689,17 @@
     return `--month-accent: ${theme.accent}; --month-accent-soft: ${theme.accentSoft}; --month-accent-mist: ${theme.accentMist}; --month-sun: ${theme.sun}; --month-sun-soft: ${theme.sunSoft};`;
   }
 
-  function centerMonth(monthNumber: number, focusCard = false, resetVertical = false): void {
+  function centerMonth(monthNumber: number, resetVertical = false): void {
     activeMonth = monthNumber;
 
     requestAnimationFrame(() => {
       scrollRailToItem(".board", `[data-month-card="${monthNumber}"]`, resetVertical);
       scrollRailToItem(".month-tabs", `[data-month-tab="${monthNumber}"]`);
-      if (focusCard) {
-        const card = document.querySelector(`[data-month-card="${monthNumber}"]`);
-        if (card instanceof HTMLElement) card.focus({ preventScroll: true });
-      }
     });
   }
 
   function selectMonth(monthNumber: number): void {
-    centerMonth(monthNumber, true, true);
+    centerMonth(monthNumber, true);
   }
 
   function selectCurrentMonth(): void {
@@ -719,21 +743,11 @@
     });
   }
 
-  function selectCardFromClick(event: MouseEvent, monthNumber: number): void {
+  function selectCardFromPointer(event: PointerEvent, monthNumber: number): void {
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest("button, input, select, textarea, a")) return;
 
-    selectMonth(monthNumber);
-  }
-
-  function selectCardFromKey(event: KeyboardEvent, monthNumber: number): void {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (target.closest("button, input, select, textarea, a")) return;
-    if (event.key !== "Enter" && event.key !== " ") return;
-
-    event.preventDefault();
     selectMonth(monthNumber);
   }
 
@@ -800,7 +814,7 @@
     const nextDrafts = { ...drafts };
     for (const year of book.years) {
       for (const month of year.months) {
-        const key = draftKey(month.month, subcategory.section, subcategory.id);
+        const key = draftKeyForYear(year.year, month.month, subcategory.section, subcategory.id);
         nextDrafts[key] ??= emptyDraft();
       }
     }
@@ -868,6 +882,80 @@
 
   function labelListId(section: Section): string {
     return section === "inkomsten" ? "income-label-suggestions" : "expense-label-suggestions";
+  }
+
+  function normalizeSuggestion(value: string): string {
+    return value.trim().replace(/\s+/g, " ");
+  }
+
+  function addSuggestion(list: string[], rawValue: string): void {
+    const value = normalizeSuggestion(rawValue);
+    if (!value) return;
+    const exists = list.some((item) => item.toLocaleLowerCase("nl-BE") === value.toLocaleLowerCase("nl-BE"));
+    if (!exists) list.push(value);
+    list.sort((left, right) => left.localeCompare(right, "nl-BE"));
+  }
+
+  function learnEntrySuggestion(section: Section, party: string, description: string): void {
+    addSuggestion(book.labels.parties, party);
+    addSuggestion(section === "inkomsten" ? book.labels.income : book.labels.expense, description);
+  }
+
+  function updateSuggestion(list: string[], oldValue: string, rawNewValue: string): string {
+    const currentIndex = list.findIndex((item) => item === oldValue);
+    if (currentIndex < 0) return oldValue;
+
+    const newValue = normalizeSuggestion(rawNewValue);
+    if (!newValue) {
+      list.splice(currentIndex, 1);
+      return "";
+    }
+
+    const duplicateIndex = list.findIndex((item, index) => index !== currentIndex && item.toLocaleLowerCase("nl-BE") === newValue.toLocaleLowerCase("nl-BE"));
+    if (duplicateIndex >= 0) {
+      list.splice(currentIndex, 1);
+      return list[duplicateIndex] ?? newValue;
+    }
+
+    list[currentIndex] = newValue;
+    list.sort((left, right) => left.localeCompare(right, "nl-BE"));
+    return newValue;
+  }
+
+  function renamePartySuggestion(oldValue: string, event: Event): void {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLInputElement)) return;
+    const previousValue = oldValue;
+    if (normalizeSuggestion(target.value) !== previousValue) rememberUndo("Partij-autofill aangepast", previousValue);
+    const nextValue = updateSuggestion(book.labels.parties, oldValue, target.value);
+    target.value = nextValue || previousValue;
+    subcategoryMessage = nextValue ? `${nextValue} bewaard in autofill.` : `${previousValue} verwijderd uit autofill.`;
+    recordHistory("Partij-autofill aangepast", subcategoryMessage);
+  }
+
+  function removePartySuggestion(value: string): void {
+    rememberUndo("Partij-autofill verwijderd", value);
+    updateSuggestion(book.labels.parties, value, "");
+    subcategoryMessage = `${value} verwijderd uit autofill. Bestaande boekingen blijven staan.`;
+    recordHistory("Partij-autofill verwijderd", subcategoryMessage);
+  }
+
+  function renameLabelSuggestion(group: "income" | "expense", oldValue: string, event: Event): void {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLInputElement)) return;
+    const previousValue = oldValue;
+    if (normalizeSuggestion(target.value) !== previousValue) rememberUndo("Label-autofill aangepast", previousValue);
+    const nextValue = updateSuggestion(book.labels[group], oldValue, target.value);
+    target.value = nextValue || previousValue;
+    subcategoryMessage = nextValue ? `${nextValue} bewaard in autofill.` : `${previousValue} verwijderd uit autofill.`;
+    recordHistory("Label-autofill aangepast", subcategoryMessage);
+  }
+
+  function removeLabelSuggestion(group: "income" | "expense", value: string): void {
+    rememberUndo("Label-autofill verwijderd", value);
+    updateSuggestion(book.labels[group], value, "");
+    subcategoryMessage = `${value} verwijderd uit autofill. Bestaande boekingen blijven staan.`;
+    recordHistory("Label-autofill verwijderd", subcategoryMessage);
   }
 
   function topParties(limit = 8): Array<{ party: string; amountCents: number; count: number }> {
@@ -1043,7 +1131,8 @@
     try {
       const rule = book.recurringRules.find((item) => item.id === ruleId);
       rememberUndo("Vaste regel aangepast", rule?.description ?? "Vaste regel aangepast.");
-      updateBookRecurringRule(book, ruleId, patch);
+      const updatedRule = updateBookRecurringRule(book, ruleId, patch);
+      learnEntrySuggestion(updatedRule.section, updatedRule.party, updatedRule.description);
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
       recurringRuleMessage = "Regel toegepast op het jaar.";
@@ -1085,6 +1174,7 @@
         frequency: newRuleDraft.frequency,
         pattern: defaultPatternForFrequency(newRuleDraft.frequency, newRuleDraft.startMonth, newRuleDraft.pattern),
       });
+      learnEntrySuggestion(rule.section, rule.party, rule.description);
       syncRecurringEntriesForBook(book);
       drafts = createDrafts(book);
       recurringRuleMessage = `${rule.description} toegevoegd en toegepast.`;
@@ -1117,8 +1207,12 @@
     return entriesFor(month, section, null);
   }
 
+  function draftKeyForYear(yearNumber: number, monthNumber: number, section: Section, subcategoryId: string): string {
+    return `${yearNumber}:${monthNumber}:${section}:${subcategoryId}`;
+  }
+
   function draftKey(monthNumber: number, section: Section, subcategoryId: string): string {
-    return `${monthNumber}:${section}:${subcategoryId}`;
+    return draftKeyForYear(selectedYear.year, monthNumber, section, subcategoryId);
   }
 
   function draftFor(monthNumber: number, section: Section, subcategoryId: string): DraftEntry {
@@ -1163,7 +1257,7 @@
     if (willLock) projectMonthToNextYear(month);
 
     if (willLock) {
-      if (expandedDraftKey?.startsWith(`${month.month}:`)) expandedDraftKey = null;
+      if (expandedDraftKey?.startsWith(`${selectedYear.year}:${month.month}:`)) expandedDraftKey = null;
       if (editingEntryId && month.entries.some((entry) => entry.id === editingEntryId)) cancelEdit();
       if (notePopup?.kind === "draft" && notePopup.monthNumber === month.month) closeNotePopup();
       if ((notePopup?.kind === "edit" || notePopup?.kind === "entry") && month.entries.some((entry) => entry.id === notePopup.entryId)) closeNotePopup();
@@ -1182,6 +1276,7 @@
     }
 
     const key = draftKey(monthNumber, section, subcategoryId);
+    drafts[key] = drafts[key] ?? emptyDraft();
     expandedDraftKey = key;
     centerMonth(monthNumber);
 
@@ -1223,6 +1318,7 @@
     if (hasError) return;
 
     rememberUndo("Boeking toegevoegd", `${monthName(month.month)}: ${description || "Nieuwe regel"}`);
+    learnEntrySuggestion(section, party, description);
     const newEntryId = `demo-${month.month}-${section}-${Date.now()}`;
     month.entries.push({
       id: newEntryId,
@@ -1316,6 +1412,7 @@
     entry.description = description;
     entry.amountCents = amountText ? parseMoneyToCents(amountText) : null;
     entry.comment = editDraft.comment.trim();
+    learnEntrySuggestion(entry.section, entry.party, entry.description);
     recordHistory("Boeking aangepast", `${entry.description} werd aangepast.`);
     editingEntryId = null;
     deleteConfirmEntryId = null;
@@ -1426,14 +1523,14 @@
   }
 
   function createDrafts(sourceBook: Book): Record<string, DraftEntry> {
-    const year = sourceBook.years[0];
     const initialDrafts: Record<string, DraftEntry> = {};
-    if (!year) return initialDrafts;
 
-    for (const month of year.months) {
-      for (const section of sections) {
-        for (const subcategory of sourceBook.subcategories.filter((item) => item.section === section && !item.hidden)) {
-          initialDrafts[draftKey(month.month, section, subcategory.id)] = emptyDraft();
+    for (const year of sourceBook.years) {
+      for (const month of year.months) {
+        for (const section of sections) {
+          for (const subcategory of sourceBook.subcategories.filter((item) => item.section === section && !item.hidden)) {
+            initialDrafts[draftKeyForYear(year.year, month.month, section, subcategory.id)] = emptyDraft();
+          }
         }
       }
     }
@@ -1618,8 +1715,21 @@
       </div>
     </button>
 
-    <section class="year-menu-card" aria-label="Jaaroverzicht">
-      <strong>{selectedYear.year}</strong>
+    <section class="year-menu-card" aria-label="Jaar kiezen">
+      <button type="button" aria-label="Vorig jaar" title="Vorig jaar" data-tooltip="Vorig jaar" disabled={availableYears[0]?.year === selectedYear.year} onclick={() => selectAdjacentYear(-1)}>
+        <ChevronLeft size={14} />
+      </button>
+      <label>
+        <span>Jaar</span>
+        <select aria-label="Actief jaar" value={String(selectedYear.year)} onchange={(event) => selectYear(Number(inputValue(event)))}>
+          {#each availableYears as year}
+            <option value={String(year.year)}>{year.year}</option>
+          {/each}
+        </select>
+      </label>
+      <button type="button" aria-label="Volgend jaar" title="Volgend jaar" data-tooltip="Volgend jaar" disabled={availableYears[availableYears.length - 1]?.year === selectedYear.year} onclick={() => selectAdjacentYear(1)}>
+        <ChevronRight size={14} />
+      </button>
       <span>Start {formatMoneyCents(selectedYear.startBalanceCents)}</span>
       <span>Eind {formatMoneyCents(totals.endCents)}</span>
     </section>
@@ -1893,24 +2003,35 @@
             <header>
               <div>
                 <h3>Partijen</h3>
-                <p>Terugkerende namen voor autofill in boekingen en vaste regels. Bewerken volgt in de volgende sprint.</p>
+                <p>Vrij getypte partijen worden geleerd bij bewaren. Hernoem naar een bestaande naam om suggesties samen te voegen.</p>
               </div>
+              {#if subcategoryMessage}
+                <span class="settings-message" role="status">{subcategoryMessage}</span>
+              {/if}
             </header>
             <div class="category-sheet">
               <div class="category-row sheet-head">
                 <span>Partij</span>
                 <span>Gebruik</span>
                 <span>Regels</span>
-                <span>Bron</span>
-                <span>Status</span>
+                <span>Uitleg</span>
+                <span>Actie</span>
               </div>
               {#each book.labels.parties as party}
                 <div class="category-row">
-                  <strong>{party}</strong>
+                  <input aria-label={`Partij-autofill ${party}`} value={party} onblur={(event) => renamePartySuggestion(party, event)} />
                   <span class="number-cell">{partyUsageCount(party)}</span>
                   <span class="number-cell">{book.recurringRules.filter((rule) => rule.party === party).length}</span>
-                  <span>Leermodus</span>
-                  <span class="muted-action">Autofill</span>
+                  <span class="muted-action">Bestaande boekingen blijven ongewijzigd.</span>
+                  <button type="button" class="inline-action danger-inline" aria-label={`Partij-autofill verwijderen: ${party}`} title="Uit autofill verwijderen" data-tooltip="Uit autofill verwijderen" onclick={() => removePartySuggestion(party)}>Verwijderen</button>
+                </div>
+              {:else}
+                <div class="category-row">
+                  <strong>Nog geen partijen geleerd</strong>
+                  <span></span>
+                  <span></span>
+                  <span class="muted-action">Vul partijen in de grid of vaste regels in.</span>
+                  <span class="muted-action">Geen actie</span>
                 </div>
               {/each}
             </div>
@@ -1920,8 +2041,11 @@
             <header>
               <div>
                 <h3>Labels</h3>
-                <p>Uniforme omschrijvingen voor autofill, regels en latere rapporten. Dit wordt later uitbreidbaar met echte tags.</p>
+                <p>Omschrijvingen worden apart geleerd voor inkomsten en uitgaven. Verwijderen haalt enkel de suggestie weg.</p>
               </div>
+              {#if subcategoryMessage}
+                <span class="settings-message" role="status">{subcategoryMessage}</span>
+              {/if}
             </header>
             <div class="category-sheet">
               <div class="category-row sheet-head">
@@ -1929,7 +2053,7 @@
                 <span>Gebruik</span>
                 <span>Regels</span>
                 <span>Groep</span>
-                <span>Status</span>
+                <span>Actie</span>
               </div>
               {#each labelGroups as group}
                 {@const labels = book.labels[group.key]}
@@ -1939,11 +2063,11 @@
                 </div>
                 {#each labels as label}
                   <div class="category-row">
-                    <strong>{label}</strong>
+                    <input aria-label={`${group.label}-label ${label}`} value={label} onblur={(event) => renameLabelSuggestion(group.key, label, event)} />
                     <span class="number-cell">{labelUsageCount(label)}</span>
                     <span class="number-cell">{book.recurringRules.filter((rule) => rule.description === label).length}</span>
                     <span>{labelGroupName(group.key)}</span>
-                    <span class="muted-action">Autofill</span>
+                    <button type="button" class="inline-action danger-inline" aria-label={`Label-autofill verwijderen: ${label}`} title="Uit autofill verwijderen" data-tooltip="Uit autofill verwijderen" onclick={() => removeLabelSuggestion(group.key, label)}>Verwijderen</button>
                   </div>
                 {/each}
               {/each}
@@ -2525,14 +2649,11 @@
         class:locked-card={month.locked}
         class="month-card"
         aria-label={monthName(month.month)}
-        aria-pressed={activeMonth === month.month}
         data-month-card={month.month}
+        role="group"
         style={monthThemeStyle(month.month)}
-        onclick={(event) => selectCardFromClick(event, month.month)}
+        onpointerup={(event) => selectCardFromPointer(event, month.month)}
         onfocusin={(event) => activateMonthForFocus(event, month.month)}
-        onkeydown={(event) => selectCardFromKey(event, month.month)}
-        role="button"
-        tabindex="0"
       >
         <header class="month-header">
           <img src={monthImage(month.month)} alt="" />
@@ -2590,6 +2711,12 @@
           <div class="projection-note" role="status">
             <Clock size={14} aria-hidden="true" />
             <span>{projectionStateLabel(month)}</span>
+          </div>
+        {/if}
+        {#if month.projection}
+          <div class="projection-note" role="status">
+            <Clock size={14} aria-hidden="true" />
+            <span>Projectie vanuit {month.projection.sourceYear}, {month.projection.entryCount} regel{month.projection.entryCount === 1 ? "" : "s"}.</span>
           </div>
         {/if}
 

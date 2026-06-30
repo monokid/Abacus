@@ -19,6 +19,7 @@ publish/
 coverage/
 test-results/
 playwright-report/
+docs/ui-audits/
 
 # Local app data and personal data
 gegevens/
@@ -40,4 +41,3 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
-

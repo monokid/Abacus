@@ -205,17 +205,17 @@ h1 {
 
 .year-menu-card {
   display: grid;
-  grid-template-columns: auto minmax(58px, 1fr);
+  grid-template-columns: 28px minmax(82px, auto) 28px minmax(70px, 1fr);
   grid-template-rows: auto auto;
   grid-template-areas:
-    "year start"
-    "year end";
+    "prev chooser next start"
+    "prev chooser next end";
   align-items: center;
-  gap: 8px;
+  gap: 5px 7px;
   min-width: 0;
-  max-width: 270px;
+  max-width: 345px;
   min-height: 34px;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border: 1px solid rgba(113, 90, 52, 0.18);
   border-radius: 8px;
   background:
@@ -223,10 +223,60 @@ h1 {
     rgba(255, 253, 247, 0.72);
 }
 
-.year-menu-card strong {
-  grid-area: year;
+.year-menu-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 28px;
+  min-height: 28px;
+  border: 1px solid rgba(67, 86, 54, 0.24);
+  border-radius: 6px;
   color: #2f6a3c;
-  font-size: 1.02rem;
+  background: rgba(255, 253, 247, 0.72);
+  padding: 0;
+  cursor: pointer;
+}
+
+.year-menu-card button:first-child {
+  grid-area: prev;
+}
+
+.year-menu-card button:nth-of-type(2) {
+  grid-area: next;
+}
+
+.year-menu-card button:disabled {
+  color: rgba(83, 96, 71, 0.4);
+  cursor: default;
+  opacity: 0.62;
+}
+
+.year-menu-card label {
+  grid-area: chooser;
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.year-menu-card label span {
+  color: #73684f;
+  font-size: 0.59rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.year-menu-card select {
+  min-width: 76px;
+  min-height: 25px;
+  border: 1px solid rgba(75, 99, 58, 0.22);
+  border-radius: 6px;
+  color: #2f6a3c;
+  background: rgba(255, 253, 247, 0.9);
+  padding: 0 6px;
+  font: inherit;
+  font-weight: 800;
 }
 
 .year-menu-card span {
@@ -239,11 +289,11 @@ h1 {
   white-space: nowrap;
 }
 
-.year-menu-card span:nth-of-type(1) {
+.year-menu-card > span:nth-of-type(1) {
   grid-area: start;
 }
 
-.year-menu-card span:nth-of-type(2) {
+.year-menu-card > span:nth-of-type(2) {
   grid-area: end;
 }
 
@@ -799,9 +849,20 @@ h1 {
   font: inherit;
 }
 
+.category-row button {
+  min-height: 30px;
+  justify-self: end;
+}
+
 .category-row .number-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.danger-inline {
+  color: #8b3f35;
+  border-color: rgba(154, 63, 56, 0.26);
+  background: rgba(255, 247, 241, 0.72);
 }
 
 .sheet-actions {
@@ -1321,6 +1382,7 @@ h1 {
 }
 
 .evening .year-menu-card span,
+.evening .year-menu-card label span,
 .evening .menu-page p,
 .evening .settings-card span,
 .evening .settings-block p,
@@ -1341,6 +1403,7 @@ h1 {
 }
 
 .evening .year-menu-card strong,
+.evening .year-menu-card select,
 .evening .menu-page h2,
 .evening .settings-card strong,
 .evening .settings-block h3,
@@ -1351,6 +1414,22 @@ h1 {
 .evening .new-rule-panel h4,
 .evening .rule-composer h4 {
   color: #f0e4c1;
+}
+
+.evening .year-menu-card button,
+.evening .year-menu-card select {
+  border-color: rgba(219, 190, 118, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.evening .year-menu-card button:disabled {
+  color: rgba(234, 219, 182, 0.38);
+}
+
+.evening .danger-inline {
+  color: #f0bba2;
+  border-color: rgba(226, 132, 122, 0.28);
+  background: rgba(118, 51, 45, 0.18);
 }
 
 .evening .menu-card-icon,
@@ -1668,7 +1747,7 @@ h1 {
   gap: 14px;
   overflow-x: auto;
   overflow-y: scroll;
-  height: calc(100vh - 150px);
+  height: calc(100vh - 186px);
   min-height: 0;
   padding: 9px 24px 72px;
   overscroll-behavior: contain;
@@ -3099,7 +3178,7 @@ h1 {
   }
 
   .board {
-    height: calc(100vh - 144px);
+    height: calc(100vh - 180px);
   }
 
   .month-header {

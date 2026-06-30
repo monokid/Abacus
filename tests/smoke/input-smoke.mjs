@@ -114,11 +114,11 @@ try {
   await navigateToMonth(page, 9);
   await navigateWithCardButton(page, 9, "Volgende maand", 10);
   await expectActiveMonthVisible(page, 10);
-  await expectMonthCardFocused(page, 10);
+  await expectMonthCardsDoNotStealFocus(page);
   await expectMonthTabsVisible(page, "na volgende maand op kaart");
   await navigateWithCardButton(page, 10, "Vorige maand", 9);
   await expectActiveMonthVisible(page, 9);
-  await expectMonthCardFocused(page, 9);
+  await expectMonthCardsDoNotStealFocus(page);
   await navigateToMonth(page, 12);
   await expectActiveMonthVisible(page, 12);
   await expectActiveCardCenteredEnough(page, 12);
@@ -162,6 +162,7 @@ try {
   await expectVisibleText(page, "Pensioenfonds rooktest");
   await expectVisibleText(page, "Inkomen met partij rooktest");
   await expectVisibleText(page, "123,45");
+  await expectLearnedAutocompleteAndManagement(page);
   await editIncomeRow(page);
   await expectVisibleText(page, "Pensioenfonds aangepast");
   await expectVisibleText(page, "Inkomen aangepast rooktest");
@@ -443,6 +444,7 @@ async function expectMonthLockBlocksEditing(page) {
   await expectMonthCardVisibleText(page, 8, "Augustus is vergrendeld");
   await expectMonthCardVisibleText(page, 8, "Projectie 2027");
   await captureScreenshot(page, "16-month-locked.png");
+  await expectYearNavigation(page);
 
   const addButton = card.getByLabel("Invoer openen voor Pensioen").first();
   if (!(await addButton.isDisabled())) {
@@ -463,6 +465,19 @@ async function expectMonthLockBlocksEditing(page) {
   await openDraft(page, 8, "inkomsten", "sub-ink-pensioen", "Pensioen");
   await expectMonthCardVisibleText(page, 8, "Omschrijving");
   await page.keyboard.press("Escape");
+}
+
+async function expectYearNavigation(page) {
+  await page.getByLabel("Actief jaar").selectOption("2027");
+  await expectVisibleText(page, "Jaarbegroting 2027");
+  await expectActiveMonthVisible(page, 1);
+  await navigateToMonth(page, 8);
+  await expectVisibleText(page, "Projectie vanuit 2026");
+  await page.getByLabel("Vorig jaar").click();
+  await expectVisibleText(page, "Jaarbegroting 2026");
+  await expectActiveMonthVisible(page, 6);
+  await page.getByLabel("Actief jaar").selectOption("2026");
+  await navigateToMonth(page, 8);
 }
 
 async function expectRemainingMenusFunctional(page) {
@@ -860,15 +875,17 @@ async function expectOtherMonthButtonCentersCard(page, monthNumber) {
   await expectActiveCardCenteredEnough(page, monthNumber);
 }
 
-async function expectMonthCardFocused(page, monthNumber) {
-  const issue = await page.evaluate((targetMonthNumber) => {
-    const activeCard = document.querySelector(`[data-month-card="${targetMonthNumber}"]`);
-    if (!(activeCard instanceof HTMLElement)) return "Maandkaart ontbreekt.";
-    if (document.activeElement !== activeCard) return "Focus staat niet op de geselecteerde maandkaart.";
+async function expectMonthCardsDoNotStealFocus(page) {
+  const issue = await page.evaluate(() => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement.classList.contains("month-card")) return "Maandkaart neemt zelf focus in.";
+    for (const card of document.querySelectorAll(".month-card")) {
+      if (card.getAttribute("role") === "button" || card.hasAttribute("tabindex")) return "Maandkaart gedraagt zich nog als focusbare knop.";
+    }
     return "";
-  }, monthNumber);
+  });
 
-  if (issue) throw new Error(`Maandkaart-focuscontrole faalde voor maand ${monthNumber}: ${issue}`);
+  if (issue) throw new Error(`Maandkaart-focuscontrole faalde: ${issue}`);
 }
 
 async function navigateByClickingCard(page, monthNumber) {
@@ -1025,11 +1042,11 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   }
   await expectVisibleText(page, "Categorieen");
   await page.getByRole("button", { name: "Partijen" }).click();
-  await expectVisibleText(page, "Terugkerende namen voor autofill");
+  await expectVisibleText(page, "Vrij getypte partijen worden geleerd");
   await expectMenuWorkbookShell(page, "Partijen");
   await captureScreenshot(page, "19-manage-parties.png");
   await page.getByRole("button", { name: "Labels" }).click();
-  await expectVisibleText(page, "Uniforme omschrijvingen voor autofill");
+  await expectVisibleText(page, "Omschrijvingen worden apart geleerd");
   await expectMenuWorkbookShell(page, "Labels");
   await captureScreenshot(page, "20-manage-labels.png");
   await page.getByRole("button", { name: "Vaste regels" }).click();
@@ -1502,6 +1519,46 @@ async function expectAutocompleteSuggestions(page) {
   });
   if (gridIssue) throw new Error(`Autocompletecontrole faalde: ${gridIssue}`);
   await page.keyboard.press("Escape");
+}
+
+async function expectLearnedAutocompleteAndManagement(page) {
+  const learnedIssue = await page.evaluate(() => {
+    const partyList = document.querySelector("#party-suggestions");
+    const incomeList = document.querySelector("#income-label-suggestions");
+    if (!(partyList instanceof HTMLDataListElement)) return "Partijenlijst ontbreekt na bewaren.";
+    if (!(incomeList instanceof HTMLDataListElement)) return "Inkomstenlabellijst ontbreekt na bewaren.";
+    if (!Array.from(partyList.options).some((option) => option.value === "Pensioenfonds rooktest")) return "Nieuwe partij werd niet geleerd.";
+    if (!Array.from(incomeList.options).some((option) => option.value === "Inkomen met partij rooktest")) return "Nieuwe omschrijving werd niet geleerd.";
+    return "";
+  });
+  if (learnedIssue) throw new Error(`Leer-autocomplete faalde: ${learnedIssue}`);
+
+  await page.getByRole("button", { name: "Beheer" }).click();
+  await page.getByRole("button", { name: "Partijen" }).click();
+  await expectVisibleText(page, "Vrij getypte partijen worden geleerd");
+  const partyInput = page.getByLabel("Partij-autofill Pensioenfonds rooktest");
+  await partyInput.fill("Pensioenfonds beheer");
+  await partyInput.blur();
+  await expectVisibleText(page, "Pensioenfonds beheer bewaard in autofill.");
+
+  await page.getByRole("button", { name: "Labels" }).click();
+  await expectVisibleText(page, "Omschrijvingen worden apart geleerd");
+  await page.getByLabel("Label-autofill verwijderen: Inkomen met partij rooktest").click();
+  await expectVisibleText(page, "Inkomen met partij rooktest verwijderd uit autofill.");
+
+  await page.getByRole("button", { name: "Jaarblad" }).click();
+  await navigateToMonth(page, 9);
+  await expectMonthCardVisibleText(page, 9, "Inkomen met partij rooktest");
+
+  const cleanedIssue = await page.evaluate(() => {
+    const partyList = document.querySelector("#party-suggestions");
+    const incomeList = document.querySelector("#income-label-suggestions");
+    if (!(partyList instanceof HTMLDataListElement) || !(incomeList instanceof HTMLDataListElement)) return "Suggestielijsten ontbreken na beheer.";
+    if (!Array.from(partyList.options).some((option) => option.value === "Pensioenfonds beheer")) return "Hernoemde partij ontbreekt in autofill.";
+    if (Array.from(incomeList.options).some((option) => option.value === "Inkomen met partij rooktest")) return "Verwijderd label staat nog in autofill.";
+    return "";
+  });
+  if (cleanedIssue) throw new Error(`Beheer-autocomplete faalde: ${cleanedIssue}`);
 }
 
 async function expectTooltips(page) {
