@@ -1040,7 +1040,7 @@ async function expectMenuPagesDoNotCompressBoard(page) {
       throw new Error(`${removedLabel} staat nog als hoofdmenu.`);
     }
   }
-  await expectVisibleText(page, "Categorieen");
+  await expectVisibleText(page, "Categorieën");
   await page.getByRole("button", { name: "Partijen" }).click();
   await expectVisibleText(page, "Vrij getypte partijen worden geleerd");
   await expectMenuWorkbookShell(page, "Partijen");
@@ -1367,8 +1367,8 @@ async function expectModeSwitchSeparatesDemo(page) {
 
 async function expectCategorySettingsManagement(page) {
   await page.getByRole("button", { name: "Beheer" }).click();
-  await page.getByRole("button", { name: "Categorieen" }).click();
-  await expectVisibleText(page, "Categorieen");
+  await page.getByRole("button", { name: "Categorieën" }).click();
+  await expectVisibleText(page, "Categorieën");
 
   await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").fill("Apotheek Extra");
   await page.getByLabel("Nieuwe subcategorie voor Variabele kosten").press("Enter");
@@ -1387,7 +1387,7 @@ async function expectCategorySettingsManagement(page) {
   await expectVisibleText(page, "Nieuwe zalf");
 
   await page.getByRole("button", { name: "Beheer" }).click();
-  await page.getByRole("button", { name: "Categorieen" }).click();
+  await page.getByRole("button", { name: "Categorieën" }).click();
   await page.getByLabel("Naam van subcategorie Apotheek Extra").fill("Apotheek");
   await page.keyboard.press("Tab");
   await expectVisibleText(page, "Apotheek bewaard");
@@ -1404,7 +1404,7 @@ async function expectCategoryUsage(page, name, expectedEntries, expectedRules) {
   const issue = await page.evaluate(({ name, expectedEntries, expectedRules }) => {
     const input = Array.from(document.querySelectorAll(".category-row input")).find((element) => element instanceof HTMLInputElement && element.value === name);
     const row = input?.closest(".category-row");
-    if (!(row instanceof HTMLElement)) return `${name} staat niet in het categorieenblad.`;
+    if (!(row instanceof HTMLElement)) return `${name} staat niet in het categorieënblad.`;
     const cells = Array.from(row.children);
     const entries = Number(cells[1]?.textContent?.trim());
     const rules = Number(cells[2]?.textContent?.trim());

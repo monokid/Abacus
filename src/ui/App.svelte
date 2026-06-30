@@ -146,7 +146,7 @@
     backup: "Veiligheid",
   };
   const manageTabLabels: Record<ManageTab, string> = {
-    categories: "Categorieen",
+    categories: "Categorieën",
     parties: "Partijen",
     labels: "Labels",
     rules: "Vaste regels",
@@ -801,10 +801,10 @@
 
   function moveSubcategory(subcategoryId: string, direction: -1 | 1): void {
     try {
-      rememberUndo("Categorievolgorde aangepast", "De volgorde van categorieen werd aangepast.");
+      rememberUndo("Categorievolgorde aangepast", "De volgorde van categorieën werd aangepast.");
       moveBookSubcategory(book, subcategoryId, direction);
       subcategoryMessage = "Volgorde aangepast.";
-      recordHistory("Categorievolgorde aangepast", "De volgorde van categorieen werd aangepast.");
+      recordHistory("Categorievolgorde aangepast", "De volgorde van categorieën werd aangepast.");
     } catch (error) {
       subcategoryMessage = error instanceof Error ? error.message : "Volgorde kon niet worden aangepast.";
     }
@@ -1869,7 +1869,7 @@
           <header>
             <div>
               <h3>Hoofdgroepen</h3>
-              <p>Lees-only overzicht. Dit wordt later de basis voor filters, grafieken en rapporten.</p>
+              <p>Alleen-lezen overzicht. Dit wordt later de basis voor filters, grafieken en rapporten.</p>
             </div>
           </header>
           <div class="overview-table" role="table" aria-label="Totalen per hoofdgroep">
@@ -1917,7 +1917,7 @@
         <header class="menu-heading">
           <div>
             <h2>Beheer</h2>
-            <p>Categorieen, partijen, labels en vaste regels staan hier als compacte werkbladen bij elkaar.</p>
+            <p>Categorieën, partijen, labels en vaste regels staan hier als compacte werkbladen bij elkaar.</p>
           </div>
           <nav class="settings-tabs" aria-label="Beheer onderdelen">
             <button class:active={activeManageTab === "categories"} type="button" aria-pressed={activeManageTab === "categories"} onclick={() => (activeManageTab = "categories")}>{manageTabLabels.categories}</button>
@@ -1928,11 +1928,11 @@
         </header>
 
         {#if activeManageTab === "categories"}
-          <section class="settings-block workbook-block" aria-label="Categorieen beheren">
+          <section class="settings-block workbook-block" aria-label="Categorieën beheren">
             <header>
               <div>
-                <h3>Categorieen</h3>
-                <p>Beheer de subcategorieen die onder elke hoofdgroep in de maandkaarten verschijnen.</p>
+                <h3>Categorieën</h3>
+                <p>Beheer de subcategorieën die onder elke hoofdgroep in de maandkaarten verschijnen.</p>
               </div>
               {#if subcategoryMessage}
                 <span class="settings-message" role="status">{subcategoryMessage}</span>

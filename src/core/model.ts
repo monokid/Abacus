@@ -256,7 +256,7 @@ export function validateBook(book: Book): string[] {
   if (book.settings.locale !== "nl-BE") issues.push("Ongeldige taalinstelling.");
   if (book.settings.currency !== "EUR") issues.push("Ongeldige muntinstelling.");
   if (!Array.isArray(book.years) || book.years.length === 0) issues.push("Minstens een jaar is vereist.");
-  if (!Array.isArray(book.subcategories)) issues.push("Subcategorieen ontbreken.");
+  if (!Array.isArray(book.subcategories)) issues.push("Subcategorieën ontbreken.");
 
   const subcategoryIds = new Set<string>();
   for (const item of book.subcategories ?? []) {
