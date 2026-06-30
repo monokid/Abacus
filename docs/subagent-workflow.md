@@ -46,6 +46,28 @@ Verifier agents:
 4. Verifier agent checks the result without editing.
 5. Main thread integrates, fixes, and summarizes.
 
+## Fixed Roles
+
+Use fewer, clearer agents. The default standing roles are:
+
+- Product owner: main thread. Keeps the app calm, Dutch, father-friendly, and aligned with the milestone.
+- Builder: main thread or one worker. Owns the code change and does not mix unrelated refactors into the pass.
+- Dad tester: verifier. Checks whether navigation, typing, tabbing, and recovery feel obvious for a non-technical user.
+- Visual tester: verifier. Checks screenshots in light and dark mode for alignment, clipped text, spacing, contrast, and theme leaks.
+- Data tester: explorer or verifier. Checks Excel-like rules, recurring labels, demo data, and out-of-bounds sample habits.
+
+Do not add more agents unless there is a separate, named question. More agents are only useful when their roles do not overlap.
+
+## Required Visual Coverage
+
+Every visual or menu pass must include:
+
+- Light and dark mode.
+- Jaarblad, Overzicht, Inzichten, Beheer, Instellingen, Veiligheid.
+- At least one wide desktop viewport and one small-laptop viewport.
+- A screenshot review before handoff.
+- A check that menu tables do not keep light backgrounds in dark mode.
+
 ## Verification Rule
 
 Every coding milestone should end with fast verification.
@@ -56,4 +78,3 @@ Heavy checks should run when they match the risk:
 - Scoped-update test after render/state changes.
 - Backup/recovery tests after persistence changes.
 - Security scan before public release hardening.
-

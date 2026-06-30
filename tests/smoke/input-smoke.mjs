@@ -60,6 +60,7 @@ try {
   await expectMonthLockBlocksEditing(page);
   await expectTooltips(page);
   await expectMonthHeaderLayout(page, "eerste laadbeurt");
+  await expectMonthCompanionAccents(page);
   await expectDistinctSectionIcons(page);
   await expectSectionColorScales(page);
   await expectCarryBalanceInIncomeGrid(page);
@@ -386,12 +387,14 @@ async function auditDarkMode(browser) {
   await page.getByLabel("Weergave wisselen").click();
   await navigateToMonth(page, 9);
   await expectDarkModeMonthHeaders(page);
+  await expectDarkModeMenuSheets(page);
   await expectCurrentMonthIndicator(page);
   await expectSeasonalMonthBadges(page);
   await expectMonthFooterSummaries(page, "donkere modus");
   await expectMonthFootersAligned(page, "donkere modus");
   await expectSectionColorScales(page);
   await expectMonthHeaderLayout(page, "donkere modus");
+  await expectMonthCompanionAccents(page);
   await expectSpreadsheetColumnDividers(page);
   await expectNoNestedMonthLedgerVerticalScrollbars(page);
   await expectBoardCanScrollCardsClearOfFooter(page, "donkere modus");
@@ -475,7 +478,8 @@ async function expectYearNavigation(page) {
   await expectVisibleText(page, "Projectie vanuit 2026");
   await page.getByLabel("Vorig jaar").click();
   await expectVisibleText(page, "Jaarbegroting 2026");
-  await expectActiveMonthVisible(page, 6);
+  const currentMonth = Number(await page.locator(".month-card.current-month").getAttribute("data-month-card"));
+  await expectActiveMonthVisible(page, currentMonth);
   await page.getByLabel("Actief jaar").selectOption("2026");
   await navigateToMonth(page, 8);
 }
@@ -1322,7 +1326,8 @@ async function expectBrandReturnsToCurrentMonth(page) {
     const currentTab = document.querySelector('[data-current-month="true"]');
     return currentCard?.classList.contains("active-card") && currentTab?.classList.contains("active");
   });
-  await expectActiveCardCenteredEnough(page, 6);
+  const currentMonth = Number(await page.locator(".month-card.current-month").getAttribute("data-month-card"));
+  await expectActiveCardCenteredEnough(page, currentMonth);
 }
 
 async function expectModeSwitchSeparatesDemo(page) {
@@ -1891,6 +1896,62 @@ async function expectDarkModeMonthHeaders(page) {
   if (issue) throw new Error(`Donkere-moduscontrole faalde: ${issue}`);
 }
 
+async function expectDarkModeMenuSheets(page) {
+  const menuChecks = [
+    { button: "Overzicht", text: "Jaaroverzicht" },
+    { button: "Inzichten", text: "Hoofdgroepen" },
+    { button: "Beheer", text: "Categorieën" },
+    { button: "Instellingen", text: "Appgedrag" },
+    { button: "Veiligheid", text: "Back-up en herstel" },
+  ];
+
+  for (const check of menuChecks) {
+    await page.locator(".toolbar").getByRole("button", { name: check.button, exact: true }).click();
+    await expectVisibleText(page, check.text);
+    const issue = await page.evaluate((label) => {
+      const main = document.querySelector("main");
+      if (!main?.classList.contains("evening")) return `${label}: avondmodus is niet actief.`;
+      const rows = Array.from(document.querySelectorAll(".overview-row, .category-row, .rule-table-row, .data-row, .backup-row, .history-row, .event-row")).filter((row) => {
+        if (!(row instanceof HTMLElement)) return false;
+        const rect = row.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+      });
+      if (rows.length === 0) return `${label}: geen werkbladrijen gevonden.`;
+
+      const baseColor = getComputedStyle(main).backgroundColor;
+      for (const row of rows) {
+        if (!(row instanceof HTMLElement)) continue;
+        const background = getComputedStyle(row).backgroundColor;
+        const brightness = averageBrightness(background, baseColor);
+        if (brightness > 118) return `${label}: lichte rij in donker menu (${background}).`;
+      }
+      return "";
+
+      function averageBrightness(cssColor, baseCssColor) {
+        const color = parseColor(cssColor);
+        const base = parseColor(baseCssColor) ?? { r: 29, g: 45, b: 37, a: 1 };
+        if (!color) return 0;
+        const alpha = color.a ?? 1;
+        const r = color.r * alpha + base.r * (1 - alpha);
+        const g = color.g * alpha + base.g * (1 - alpha);
+        const b = color.b * alpha + base.b * (1 - alpha);
+        return (r + g + b) / 3;
+      }
+
+      function parseColor(cssColor) {
+        const match = cssColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
+        if (!match) return null;
+        return { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]), a: match[4] === undefined ? 1 : Number(match[4]) };
+      }
+    }, check.button);
+
+    if (issue) throw new Error(`Donkere-menubladcontrole faalde: ${issue}`);
+  }
+
+  await capturePageScreenshot(page, "11-dark-menu-sheets.png");
+  await page.locator(".toolbar").getByRole("button", { name: "Jaarblad", exact: true }).click();
+}
+
 async function expectActiveCardCenteredEnough(page, monthNumber) {
   await page.waitForFunction(
     (targetMonthNumber) => {
@@ -1980,6 +2041,34 @@ async function expectMonthHeaderLayout(page, label) {
   if (issues.length > 0) {
     throw new Error(`Visuele headercontrole faalde (${label}):\n${issues.join("\n")}`);
   }
+}
+
+async function expectMonthCompanionAccents(page) {
+  const issue = await page.evaluate(() => {
+    const expected = [2, 8, 9];
+    for (const month of expected) {
+      const card = document.querySelector(`[data-month-card="${month}"]`);
+      if (!(card instanceof HTMLElement)) return `Maand ${month}: kaart ontbreekt.`;
+      const companion = card.querySelector(".month-companion");
+      if (!(companion instanceof HTMLElement)) return `Maand ${month}: decoraccent ontbreekt.`;
+      const title = card.querySelector(".month-title");
+      const tools = card.querySelector(".month-tools");
+      if (!(title instanceof HTMLElement) || !(tools instanceof HTMLElement)) return `Maand ${month}: headeronderdelen ontbreken.`;
+      const companionRect = companion.getBoundingClientRect();
+      const titleRect = title.getBoundingClientRect();
+      const toolsRect = tools.getBoundingClientRect();
+      if (companionRect.width < 38 || companionRect.height < 28) return `Maand ${month}: decoraccent is te klein.`;
+      if (rectsOverlap(companionRect, titleRect)) return `Maand ${month}: decoraccent overlapt de maandtitel.`;
+      if (rectsOverlap(companionRect, toolsRect)) return `Maand ${month}: decoraccent overlapt de knoppen.`;
+    }
+    return "";
+
+    function rectsOverlap(left, right) {
+      return left.left < right.right && left.right > right.left && left.top < right.bottom && left.bottom > right.top;
+    }
+  });
+
+  if (issue) throw new Error(`Maanddecorcontrole faalde: ${issue}`);
 }
 
 async function expectMonthFooterSummaries(page, label) {

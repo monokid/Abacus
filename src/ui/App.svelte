@@ -59,6 +59,9 @@
   import novemberImage from "../../assets/months/november.png";
   import decemberImage from "../../assets/months/december.png";
   import abacusMark from "../../assets/brand/abacus-mark.png";
+  import februariAapje from "../../assets/decor/februari-aapje.png";
+  import augustusBeertje from "../../assets/decor/augustus-beertje.png";
+  import septemberAapjeBeertje from "../../assets/decor/september-aapje-beertje.png";
 
   interface DraftEntry {
     party: string;
@@ -77,6 +80,7 @@
     accentMist: string;
     sun: string;
     sunSoft: string;
+    companion?: string;
   }
 
   interface RecurringRuleDraft {
@@ -225,14 +229,14 @@
   const visibleHistoryEvents = $derived(historyEvents.slice(0, 12));
   const months: MonthView[] = [
     { name: "Januari", image: januariImage, accent: "#486b73", accentSoft: "#dbe6e6", accentMist: "rgba(219, 230, 230, 0.68)", sun: "#d8bf78", sunSoft: "#efe3bf" },
-    { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)", sun: "#dfc069", sunSoft: "#f1e1b0" },
+    { name: "Februari", image: februariImage, accent: "#7b5269", accentSoft: "#eadde5", accentMist: "rgba(234, 221, 229, 0.68)", sun: "#dfc069", sunSoft: "#f1e1b0", companion: februariAapje },
     { name: "Maart", image: maartImage, accent: "#668344", accentSoft: "#e3ead4", accentMist: "rgba(227, 234, 212, 0.7)", sun: "#e3c755", sunSoft: "#efe6a9" },
     { name: "April", image: aprilImage, accent: "#78934d", accentSoft: "#e8ecd2", accentMist: "rgba(232, 236, 210, 0.72)", sun: "#e8c84b", sunSoft: "#f1e6a5" },
     { name: "Mei", image: meiImage, accent: "#b28b3d", accentSoft: "#f0e4bf", accentMist: "rgba(240, 228, 191, 0.72)", sun: "#e7b93e", sunSoft: "#f3daa0" },
     { name: "Juni", image: juniImage, accent: "#9a9a45", accentSoft: "#ece8bb", accentMist: "rgba(236, 232, 187, 0.72)", sun: "#e5aa32", sunSoft: "#f2d18c" },
     { name: "Juli", image: juliImage, accent: "#aa743f", accentSoft: "#eed7bd", accentMist: "rgba(238, 215, 189, 0.72)", sun: "#dc8f2b", sunSoft: "#efc087" },
-    { name: "Augustus", image: augustusImage, accent: "#b17a35", accentSoft: "#efdabe", accentMist: "rgba(239, 218, 190, 0.72)", sun: "#ce7b28", sunSoft: "#ebb57f" },
-    { name: "September", image: septemberImage, accent: "#996039", accentSoft: "#ead0bd", accentMist: "rgba(234, 208, 189, 0.7)", sun: "#bd6b2f", sunSoft: "#e2a77d" },
+    { name: "Augustus", image: augustusImage, accent: "#b17a35", accentSoft: "#efdabe", accentMist: "rgba(239, 218, 190, 0.72)", sun: "#ce7b28", sunSoft: "#ebb57f", companion: augustusBeertje },
+    { name: "September", image: septemberImage, accent: "#996039", accentSoft: "#ead0bd", accentMist: "rgba(234, 208, 189, 0.7)", sun: "#bd6b2f", sunSoft: "#e2a77d", companion: septemberAapjeBeertje },
     { name: "Oktober", image: oktoberImage, accent: "#8c5831", accentSoft: "#e7cdb8", accentMist: "rgba(231, 205, 184, 0.72)", sun: "#ad642f", sunSoft: "#d89e73" },
     { name: "November", image: novemberImage, accent: "#8b6a79", accentSoft: "#e5d8df", accentMist: "rgba(229, 216, 223, 0.7)", sun: "#c18948", sunSoft: "#e1bf8f" },
     { name: "December", image: decemberImage, accent: "#5f7a68", accentSoft: "#dce6dc", accentMist: "rgba(220, 230, 220, 0.7)", sun: "#d1b878", sunSoft: "#eadcb5" },
@@ -2657,6 +2661,9 @@
       >
         <header class="month-header">
           <img src={monthImage(month.month)} alt="" />
+          {#if months[month.month - 1]?.companion}
+            <img class="month-companion" src={months[month.month - 1].companion} alt="" aria-hidden="true" />
+          {/if}
           <div class="month-title">
             {#if currentMonthInSelectedYear === month.month}
               <Sun class="current-card-sun" size={17} aria-hidden="true" />
