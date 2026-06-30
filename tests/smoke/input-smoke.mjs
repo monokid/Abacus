@@ -476,7 +476,7 @@ async function expectRemainingMenusFunctional(page) {
     throw new Error(`Overzicht-download heeft onverwachte naam: ${download.suggestedFilename()}`);
   }
 
-  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Veiligheid", exact: true }).click();
   await page.getByRole("button", { name: "Back-up en herstel" }).click();
   await expectVisibleText(page, "Back-up en herstel");
   await page.getByRole("button", { name: "Controle uitvoeren" }).click();
@@ -1005,32 +1005,45 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   });
   if (issue) throw new Error(`Menu-layoutcontrole faalde: ${issue}`);
 
-  await page.getByRole("button", { name: "Instellingen" }).click();
-  await expectVisibleText(page, "Instellingen");
+  await page.getByRole("button", { name: "Inzichten" }).click();
+  await expectVisibleText(page, "Inzichten");
+  await expectVisibleText(page, "Hoofdgroepen");
+  await expectVisibleText(page, "Grootste partijen");
+  await expectMenuWorkbookShell(page, "Inzichten");
+  await captureScreenshot(page, "17-insights.png");
+
+  await page.getByRole("button", { name: "Beheer" }).click();
+  await expectVisibleText(page, "Beheer");
   await page.waitForFunction(() => !document.querySelector(".board") && !document.querySelector('[data-testid="month-tabs"]'));
-  await expectMenuWorkbookShell(page, "Instellingen");
-  await captureScreenshot(page, "17-settings-categories.png");
-  for (const removedLabel of ["Bewerken", "Veiligheid", "Historiek"]) {
+  await expectMenuWorkbookShell(page, "Beheer");
+  await captureScreenshot(page, "18-manage-categories.png");
+  for (const removedLabel of ["Bewerken", "Historiek"]) {
     if ((await page.locator(".toolbar").getByRole("button", { name: removedLabel }).count()) > 0) {
       throw new Error(`${removedLabel} staat nog als hoofdmenu.`);
     }
   }
   await expectVisibleText(page, "Categorieen");
+  await page.getByRole("button", { name: "Partijen" }).click();
+  await expectVisibleText(page, "Terugkerende namen voor autofill");
+  await expectMenuWorkbookShell(page, "Partijen");
+  await captureScreenshot(page, "19-manage-parties.png");
+  await page.getByRole("button", { name: "Labels" }).click();
+  await expectVisibleText(page, "Uniforme omschrijvingen voor autofill");
+  await expectMenuWorkbookShell(page, "Labels");
+  await captureScreenshot(page, "20-manage-labels.png");
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await expectVisibleText(page, "Vaste regels");
   await expectMenuWorkbookShell(page, "Vaste regels");
-  await captureScreenshot(page, "18-settings-rules.png");
-  await page.getByRole("button", { name: "Gegevens" }).click();
+  await captureScreenshot(page, "21-manage-rules.png");
+  await page.getByRole("button", { name: "Instellingen" }).click();
   await expectVisibleText(page, "Gegevensmodus");
-  await expectMenuWorkbookShell(page, "Gegevens");
-  await captureScreenshot(page, "19-settings-data.png");
-  await page.getByRole("button", { name: "Categorieen" }).click();
-  await expectVisibleText(page, "Beheer de subcategorieen");
-  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await expectMenuWorkbookShell(page, "Instellingen");
+  await captureScreenshot(page, "22-settings-data.png");
+  await page.locator(".toolbar").getByRole("button", { name: "Veiligheid", exact: true }).click();
   await page.getByRole("button", { name: "Back-up en herstel" }).click();
   await expectVisibleText(page, "Back-up en herstel");
-  await expectMenuWorkbookShell(page, "Back-up");
-  await captureScreenshot(page, "20-backup-sheet.png");
+  await expectMenuWorkbookShell(page, "Veiligheid");
+  await captureScreenshot(page, "23-safety-backup-sheet.png");
   await expectVisibleText(page, "Gegevenscontrole");
   await expectVisibleText(page, "Controlelijst");
   await expectVisibleText(page, "Back-up maken");
@@ -1048,7 +1061,7 @@ async function expectMenuPagesDoNotCompressBoard(page) {
   await expectVisibleText(page, "Wijzigingen");
   await expectVisibleText(page, "Vaste regel");
   await expectMenuWorkbookShell(page, "Wijzigingen");
-  await captureScreenshot(page, "21-changes-sheet.png");
+  await captureScreenshot(page, "24-changes-sheet.png");
   await page.getByRole("button", { name: "Jaarblad" }).click();
   await page.waitForFunction(() => document.querySelector(".board") && document.querySelector('[data-testid="month-tabs"]'));
 }
@@ -1306,7 +1319,6 @@ async function expectModeSwitchSeparatesDemo(page) {
   if (headerIssue) throw new Error(`Moduscontrole faalde: ${headerIssue}`);
 
   await page.getByRole("button", { name: "Instellingen" }).click();
-  await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Echt" }).click();
   await expectVisibleText(page, "Productie");
@@ -1330,14 +1342,13 @@ async function expectModeSwitchSeparatesDemo(page) {
   if (issue) throw new Error(`Moduscontrole faalde: ${issue}`);
 
   await page.getByRole("button", { name: "Instellingen" }).click();
-  await page.getByRole("button", { name: "Gegevens" }).click();
   await expectVisibleText(page, "Gegevensmodus");
   await page.getByRole("button", { name: "Jaarblad" }).click();
   await expectHiddenText(page, "Gegevensmodus");
 }
 
 async function expectCategorySettingsManagement(page) {
-  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Beheer" }).click();
   await page.getByRole("button", { name: "Categorieen" }).click();
   await expectVisibleText(page, "Categorieen");
 
@@ -1357,7 +1368,7 @@ async function expectCategorySettingsManagement(page) {
   await draft.getByLabel("Nieuwe regel toevoegen aan Apotheek Extra").click();
   await expectVisibleText(page, "Nieuwe zalf");
 
-  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Beheer" }).click();
   await page.getByRole("button", { name: "Categorieen" }).click();
   await page.getByLabel("Naam van subcategorie Apotheek Extra").fill("Apotheek");
   await page.keyboard.press("Tab");
@@ -1389,7 +1400,7 @@ async function expectCategoryUsage(page, name, expectedEntries, expectedRules) {
 }
 
 async function expectRecurringRuleSettings(page) {
-  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Beheer" }).click();
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await expectVisibleText(page, "Vaste regels");
 
@@ -1405,7 +1416,7 @@ async function expectRecurringRuleSettings(page) {
   await expectVisibleText(page, "Waterfilter rooktest");
   await expectVisibleText(page, "15,25");
 
-  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Beheer" }).click();
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await page.getByLabel("Regel actief: Waterfilter rooktest").uncheck();
   await expectVisibleText(page, "Regel toegepast op het jaar");
@@ -1413,7 +1424,7 @@ async function expectRecurringRuleSettings(page) {
   await navigateToMonth(page, 1);
   await expectHiddenText(page, "Waterfilter rooktest");
 
-  await page.getByRole("button", { name: "Instellingen" }).click();
+  await page.getByRole("button", { name: "Beheer" }).click();
   await page.getByRole("button", { name: "Vaste regels" }).click();
   await page.getByLabel("Hoofdgroep voor nieuwe regel").selectOption("variabele_kosten");
   await page.getByLabel("Subcategorie voor nieuwe regel").selectOption("sub-var-huishouden");
@@ -1434,7 +1445,7 @@ async function expectRecurringRuleSettings(page) {
   await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
   await expectMonthCardVisibleText(page, 7, "44,00");
 
-  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Veiligheid", exact: true }).click();
   await page.getByRole("button", { name: "Wijzigingen" }).click();
   await expectVisibleText(page, "Vaste regel toegevoegd");
   await expectVisibleText(page, "Eenmalige rooktest toegevoegd en toegepast");
@@ -1444,7 +1455,7 @@ async function expectRecurringRuleSettings(page) {
   await navigateToMonth(page, 7);
   await expectMonthCardHiddenText(page, 7, "Eenmalige rooktest");
 
-  await page.locator(".toolbar").getByRole("button", { name: "Back-up", exact: true }).click();
+  await page.locator(".toolbar").getByRole("button", { name: "Veiligheid", exact: true }).click();
   await page.getByRole("button", { name: "Wijzigingen" }).click();
   await page.getByRole("button", { name: "Opnieuw doen" }).click();
   await expectVisibleText(page, "Opnieuw gedaan");

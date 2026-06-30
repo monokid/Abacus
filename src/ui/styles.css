@@ -92,7 +92,7 @@ main.evening {
 
 .app-header {
   display: grid;
-  grid-template-columns: auto minmax(210px, 0.44fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(150px, 0.28fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   min-height: 50px;
@@ -205,11 +205,15 @@ h1 {
 
 .year-menu-card {
   display: grid;
-  grid-template-columns: auto minmax(78px, auto) minmax(78px, auto);
-  grid-template-areas: "year start end";
+  grid-template-columns: auto minmax(58px, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "year start"
+    "year end";
   align-items: center;
   gap: 8px;
   min-width: 0;
+  max-width: 270px;
   min-height: 34px;
   padding: 4px 10px;
   border: 1px solid rgba(113, 90, 52, 0.18);
@@ -229,7 +233,7 @@ h1 {
   min-width: 0;
   overflow: hidden;
   color: #73684f;
-  font-size: 0.73rem;
+  font-size: 0.69rem;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1231,7 +1235,8 @@ h1 {
 
 .tool,
 .primary-action {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  padding-inline: 7px;
 }
 
 .tool-label {

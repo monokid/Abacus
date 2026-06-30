@@ -94,6 +94,63 @@ Row field requirements:
   model should not treat income rows as party-less.
 - Recurring-rule setup must allow `partij` for income rules as well as expense rules.
 
+## Parties And Labels
+
+The app needs managed suggestions for repeated text. This should make typing feel like
+Excel with memory, while keeping names consistent across the year.
+
+Parties are recurring people, shops, services, banks, governments, or organizations such
+as `Pensioendienst`, `Telenet`, `Luminus`, `Mutualiteit`, `Aldi`, `Spar`, and `Cash`.
+
+Party requirements:
+
+- A party can be used in normal grid entries and recurring rules.
+- Party suggestions should autocomplete while typing.
+- Creating a new party from typing should be possible without leaving the grid.
+- Renaming a party should update entries and recurring rules that use it.
+- Hiding a party should remove it from suggestions without changing historical entries.
+- Future Excel import should map repeated spreadsheet names into managed parties.
+
+Labels are managed descriptions or tags such as `Pensioen`, `HH`, `Aldi`, `Spar`,
+`Nespresso`, `HOSPI+`, `belasting`, or `controle nodig`.
+
+Label requirements:
+
+- Labels should autocomplete in the grid and recurring-rule setup.
+- Labels should support reporting and filtering later.
+- Labels are separate from subcategories: a subcategory decides where a row lives, a label
+  describes what kind of row it is.
+- The first implementation may treat labels as one managed description per row; a later
+  version can support multiple tags per row if that proves useful.
+- Renaming or hiding a label should not delete historical entries.
+
+The main management surface for this belongs under `Beheer`, not under general app
+settings.
+
+## Insights And Reports
+
+Insights should be separated from settings and from the year-entry surface. They are for
+reading and checking, not for editing.
+
+First insights:
+
+- Totals per top-level section.
+- Totals and counts per subcategory.
+- Totals and counts per party.
+- Totals and counts per label.
+- Month differences and negative months.
+- Open/blank amounts.
+- Locked versus open months.
+- Projection status for the next year.
+
+Later reporting:
+
+- Printable year overview.
+- PDF export.
+- Excel export.
+- Year comparison.
+- Filters by party, label, category, and month range.
+
 ## Money Model
 
 The core data model stores money as integer cents:

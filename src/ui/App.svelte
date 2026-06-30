@@ -123,8 +123,8 @@
   }
 
   type AppMode = "demo" | "production";
-  type AppView = "year" | "overview" | "settings" | "backup";
-  type SettingsTab = "data" | "categories" | "rules";
+  type AppView = "year" | "overview" | "insights" | "manage" | "settings" | "backup";
+  type ManageTab = "categories" | "parties" | "labels" | "rules";
   type BackupTab = "backup" | "changes";
   type NoteTarget =
     | { kind: "month"; monthNumber: number; title: string }
@@ -140,13 +140,16 @@
   const viewLabels: Record<AppView, string> = {
     year: "Jaarblad",
     overview: "Overzicht",
+    insights: "Inzichten",
+    manage: "Beheer",
     settings: "Instellingen",
-    backup: "Back-up",
+    backup: "Veiligheid",
   };
-  const settingsTabLabels: Record<SettingsTab, string> = {
+  const manageTabLabels: Record<ManageTab, string> = {
     categories: "Categorieen",
+    parties: "Partijen",
+    labels: "Labels",
     rules: "Vaste regels",
-    data: "Gegevens",
   };
   const backupTabLabels: Record<BackupTab, string> = {
     backup: "Back-up en herstel",
@@ -161,13 +164,17 @@
     { value: "weekday", label: "Vaste weekdag" },
   ];
   const sections: Section[] = ["inkomsten", "vaste_kosten", "variabele_kosten"];
+  const labelGroups: Array<{ key: "income" | "expense"; label: string }> = [
+    { key: "income", label: "Inkomsten" },
+    { key: "expense", label: "Uitgaven" },
+  ];
   const initialBook = fictionalSampleBook();
   const today = new Date();
 
   let book = $state(initialBook);
   let appMode = $state<AppMode>("demo");
   let activeView = $state<AppView>("year");
-  let activeSettingsTab = $state<SettingsTab>("categories");
+  let activeManageTab = $state<ManageTab>("categories");
   let activeBackupTab = $state<BackupTab>("backup");
   let activeMonth = $state(1);
   let evening = $state(false);
@@ -825,6 +832,66 @@
 
   function projectedMonthCount(): number {
     return nextYear?.months.filter((month) => month.projection?.sourceYear === selectedYear.year).length ?? 0;
+  }
+
+  function partyUsageCount(party: string): number {
+    const normalized = party.trim().toLocaleLowerCase("nl-BE");
+    let count = 0;
+    for (const year of book.years) {
+      for (const month of year.months) {
+        count += month.entries.filter((entry) => entry.party.trim().toLocaleLowerCase("nl-BE") === normalized).length;
+      }
+    }
+    count += book.recurringRules.filter((rule) => rule.party.trim().toLocaleLowerCase("nl-BE") === normalized).length;
+    return count;
+  }
+
+  function labelUsageCount(label: string): number {
+    const normalized = label.trim().toLocaleLowerCase("nl-BE");
+    let count = 0;
+    for (const year of book.years) {
+      for (const month of year.months) {
+        count += month.entries.filter((entry) => entry.description.trim().toLocaleLowerCase("nl-BE") === normalized).length;
+      }
+    }
+    count += book.recurringRules.filter((rule) => rule.description.trim().toLocaleLowerCase("nl-BE") === normalized).length;
+    return count;
+  }
+
+  function labelGroupName(group: "income" | "expense"): string {
+    return group === "income" ? "Inkomsten" : "Uitgaven";
+  }
+
+  function topParties(limit = 8): Array<{ party: string; amountCents: number; count: number }> {
+    const totalsByParty = new Map<string, { party: string; amountCents: number; count: number }>();
+    for (const month of selectedYear.months) {
+      for (const entry of month.entries) {
+        const party = entry.party.trim() || "Geen partij";
+        const existing = totalsByParty.get(party) ?? { party, amountCents: 0, count: 0 };
+        existing.amountCents += entry.amountCents ?? 0;
+        existing.count += 1;
+        totalsByParty.set(party, existing);
+      }
+    }
+    return [...totalsByParty.values()].sort((left, right) => Math.abs(right.amountCents) - Math.abs(left.amountCents)).slice(0, limit);
+  }
+
+  function sectionTotalsForInsights(): Array<{ section: Section; amountCents: number; count: number }> {
+    return sections.map((section) => {
+      let amountCents = 0;
+      let count = 0;
+      for (const month of selectedYear.months) {
+        for (const entry of month.entries.filter((item) => item.section === section)) {
+          amountCents += entry.amountCents ?? 0;
+          count += 1;
+        }
+      }
+      return { section, amountCents, count };
+    });
+  }
+
+  function sectionTotalCents(section: Section): number {
+    return sectionTotalsForInsights().find((insight) => insight.section === section)?.amountCents ?? 0;
   }
 
   function isRecurringEntry(entry: Entry): boolean {
@@ -1552,8 +1619,10 @@
     <nav class="toolbar" aria-label="Hoofdnavigatie">
       <button class:active={activeView === "year"} class="tool" type="button" title="Jaarblad" data-tooltip="Jaarblad" onclick={() => (activeView = "year")}><CalendarDays size={16} /><span class="tool-label">Jaarblad</span></button>
       <button class:active={activeView === "overview"} class="tool" type="button" title="Overzicht" data-tooltip="Overzicht" onclick={openOverview}><Download size={16} /><span class="tool-label">Overzicht</span></button>
+      <button class:active={activeView === "insights"} class="tool" type="button" title="Inzichten" data-tooltip="Inzichten" onclick={() => (activeView = "insights")}><Coins size={16} /><span class="tool-label">Inzichten</span></button>
+      <button class:active={activeView === "manage"} class="tool" type="button" title="Beheer" data-tooltip="Beheer" onclick={() => (activeView = "manage")}><Pencil size={16} /><span class="tool-label">Beheer</span></button>
       <button class:active={activeView === "settings"} class="tool" type="button" title="Instellingen" data-tooltip="Instellingen" onclick={() => (activeView = "settings")}><Settings size={16} /><span class="tool-label">Instellingen</span></button>
-      <button class:active={activeView === "backup"} class="tool" type="button" title="Back-up" data-tooltip="Back-up" onclick={() => (activeView = "backup")}><Shield size={16} /><span class="tool-label">Back-up</span></button>
+      <button class:active={activeView === "backup"} class="tool" type="button" title="Veiligheid" data-tooltip="Veiligheid" onclick={() => (activeView = "backup")}><Shield size={16} /><span class="tool-label">Veiligheid</span></button>
     </nav>
 
     <div class="header-actions">
@@ -1633,64 +1702,98 @@
             {/each}
           </div>
         </section>
-      {:else if activeView === "settings"}
+      {:else if activeView === "insights"}
         <header class="menu-heading">
           <div>
-            <h2>Instellingen</h2>
-            <p>Categorieen, vaste regels en gegevens staan als compacte werkbladen bij elkaar.</p>
+            <h2>Inzichten</h2>
+            <p>Eerste rustige controles op waar het geld zit. Grafieken en rapporten komen hier later bij.</p>
           </div>
-          <nav class="settings-tabs" aria-label="Instellingen onderdelen">
-            <button class:active={activeSettingsTab === "categories"} type="button" aria-pressed={activeSettingsTab === "categories"} onclick={() => (activeSettingsTab = "categories")}>{settingsTabLabels.categories}</button>
-            <button class:active={activeSettingsTab === "rules"} type="button" aria-pressed={activeSettingsTab === "rules"} onclick={() => (activeSettingsTab = "rules")}>{settingsTabLabels.rules}</button>
-            <button class:active={activeSettingsTab === "data"} type="button" aria-pressed={activeSettingsTab === "data"} onclick={() => (activeSettingsTab = "data")}>{settingsTabLabels.data}</button>
+        </header>
+        <section class="overview-strip" aria-label="Inzichten samenvatting">
+          <article>
+            <span>Vaste kosten</span>
+            <strong class="negative">{formatMoneyCents(sectionTotalCents("vaste_kosten"))}</strong>
+          </article>
+          <article>
+            <span>Variabel</span>
+            <strong class="negative">{formatMoneyCents(sectionTotalCents("variabele_kosten"))}</strong>
+          </article>
+          <article>
+            <span>Partijen</span>
+            <strong>{book.labels.parties.length}</strong>
+          </article>
+          <article>
+            <span>Labels</span>
+            <strong>{book.labels.income.length + book.labels.expense.length}</strong>
+          </article>
+          <article>
+            <span>Open bedragen</span>
+            <strong>{monthsWithOpenAmounts().length} maand{monthsWithOpenAmounts().length === 1 ? "" : "en"}</strong>
+          </article>
+        </section>
+        <section class="settings-block workbook-block" aria-label="Inzichten per hoofdgroep">
+          <header>
+            <div>
+              <h3>Hoofdgroepen</h3>
+              <p>Lees-only overzicht. Dit wordt later de basis voor filters, grafieken en rapporten.</p>
+            </div>
+          </header>
+          <div class="overview-table" role="table" aria-label="Totalen per hoofdgroep">
+            <div class="overview-row overview-head" role="row">
+              <span>Hoofdgroep</span>
+              <span>Boekingen</span>
+              <span>Totaal</span>
+              <span>Gebruik</span>
+            </div>
+            {#each sectionTotalsForInsights() as insight}
+              <div class="overview-row" role="row">
+                <strong>{SECTION_LABELS[insight.section]}</strong>
+                <span>{insight.count}</span>
+                <span class:negative={insight.section !== "inkomsten"}>{formatMoneyCents(insight.amountCents)}</span>
+                <small>{insight.section === "inkomsten" ? "Inkomstenstroom" : "Uitgavenstroom"}</small>
+              </div>
+            {/each}
+          </div>
+        </section>
+        <section class="settings-block workbook-block" aria-label="Grootste partijen">
+          <header>
+            <div>
+              <h3>Grootste partijen</h3>
+              <p>Welke partijen komen in dit voorbeeldjaar het zwaarst terug?</p>
+            </div>
+          </header>
+          <div class="overview-table" role="table" aria-label="Grootste partijen">
+            <div class="overview-row overview-head" role="row">
+              <span>Partij</span>
+              <span>Boekingen</span>
+              <span>Totaal</span>
+              <span>Type</span>
+            </div>
+            {#each topParties() as party}
+              <div class="overview-row" role="row">
+                <strong>{party.party}</strong>
+                <span>{party.count}</span>
+                <span>{formatMoneyCents(party.amountCents)}</span>
+                <small>{party.party === "Geen partij" ? "Onbekend" : "Terugkerend"}</small>
+              </div>
+            {/each}
+          </div>
+        </section>
+      {:else if activeView === "manage"}
+        <header class="menu-heading">
+          <div>
+            <h2>Beheer</h2>
+            <p>Categorieen, partijen, labels en vaste regels staan hier als compacte werkbladen bij elkaar.</p>
+          </div>
+          <nav class="settings-tabs" aria-label="Beheer onderdelen">
+            <button class:active={activeManageTab === "categories"} type="button" aria-pressed={activeManageTab === "categories"} onclick={() => (activeManageTab = "categories")}>{manageTabLabels.categories}</button>
+            <button class:active={activeManageTab === "parties"} type="button" aria-pressed={activeManageTab === "parties"} onclick={() => (activeManageTab = "parties")}>{manageTabLabels.parties}</button>
+            <button class:active={activeManageTab === "labels"} type="button" aria-pressed={activeManageTab === "labels"} onclick={() => (activeManageTab = "labels")}>{manageTabLabels.labels}</button>
+            <button class:active={activeManageTab === "rules"} type="button" aria-pressed={activeManageTab === "rules"} onclick={() => (activeManageTab = "rules")}>{manageTabLabels.rules}</button>
           </nav>
         </header>
 
-        {#if activeSettingsTab === "data"}
-          <section class="settings-block workbook-block" aria-label="Gegevensmodus">
-            <header>
-              <div>
-                <h3>Gegevens</h3>
-                <p>Alles wat bepaalt in welke omgeving en welk jaar je werkt.</p>
-              </div>
-            </header>
-            <div class="data-sheet">
-              <div class="data-row sheet-head">
-                <span>Onderdeel</span>
-                <span>Huidige waarde</span>
-                <span>Uitleg</span>
-                <span>Actie</span>
-              </div>
-              <div class="data-row">
-                <strong>Gegevensmodus</strong>
-                <span>{appMode === "demo" ? "Leermodus" : "Productie"}</span>
-                <span>{appMode === "demo" ? "Fictieve begroting 2026 voor oefenen en testen." : "Echte gegevens, apart bewaard van leermodus."}</span>
-                <div class="mode-switch" aria-label="Gegevensmodus">
-                  <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
-                  <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
-                </div>
-              </div>
-              <div class="data-row">
-                <strong>Jaar</strong>
-                <span>{selectedYear.year}</span>
-                <span>Het actieve jaarblad in deze modus.</span>
-                <span class="muted-action">Automatisch</span>
-              </div>
-              <div class="data-row">
-                <strong>Startsaldo</strong>
-                <span>{formatMoneyCents(selectedYear.startBalanceCents)}</span>
-                <span>Basis waarop januari verder rekent.</span>
-                <span class="muted-action">Later bewerkbaar</span>
-              </div>
-              <div class="data-row">
-                <strong>Opslag</strong>
-                <span>{saveStatus}</span>
-                <span>Lokaal bewaard in de huidige browseromgeving.</span>
-                <span class="muted-action">{appMode === "demo" ? "Demo-opslag" : "Productie-opslag"}</span>
-              </div>
-            </div>
-          </section>
-        {:else if activeSettingsTab === "categories"}
+        {#if activeManageTab === "categories"}
           <section class="settings-block workbook-block" aria-label="Categorieen beheren">
             <header>
               <div>
@@ -1758,6 +1861,67 @@
                     <Plus size={16} />
                   </button>
                 </div>
+              {/each}
+            </div>
+          </section>
+        {:else if activeManageTab === "parties"}
+          <section class="settings-block workbook-block" aria-label="Partijen beheren">
+            <header>
+              <div>
+                <h3>Partijen</h3>
+                <p>Terugkerende namen voor autofill in boekingen en vaste regels. Bewerken volgt in de volgende sprint.</p>
+              </div>
+            </header>
+            <div class="category-sheet">
+              <div class="category-row sheet-head">
+                <span>Partij</span>
+                <span>Gebruik</span>
+                <span>Regels</span>
+                <span>Bron</span>
+                <span>Status</span>
+              </div>
+              {#each book.labels.parties as party}
+                <div class="category-row">
+                  <strong>{party}</strong>
+                  <span class="number-cell">{partyUsageCount(party)}</span>
+                  <span class="number-cell">{book.recurringRules.filter((rule) => rule.party === party).length}</span>
+                  <span>Leermodus</span>
+                  <span class="muted-action">Autofill</span>
+                </div>
+              {/each}
+            </div>
+          </section>
+        {:else if activeManageTab === "labels"}
+          <section class="settings-block workbook-block" aria-label="Labels beheren">
+            <header>
+              <div>
+                <h3>Labels</h3>
+                <p>Uniforme omschrijvingen voor autofill, regels en latere rapporten. Dit wordt later uitbreidbaar met echte tags.</p>
+              </div>
+            </header>
+            <div class="category-sheet">
+              <div class="category-row sheet-head">
+                <span>Label</span>
+                <span>Gebruik</span>
+                <span>Regels</span>
+                <span>Groep</span>
+                <span>Status</span>
+              </div>
+              {#each labelGroups as group}
+                {@const labels = book.labels[group.key]}
+                <div class:income={group.key === "income"} class:fixed={group.key === "expense"} class="sheet-section-row">
+                  <strong>{group.label}</strong>
+                  <span>{labels.length} label{labels.length === 1 ? "" : "s"}</span>
+                </div>
+                {#each labels as label}
+                  <div class="category-row">
+                    <strong>{label}</strong>
+                    <span class="number-cell">{labelUsageCount(label)}</span>
+                    <span class="number-cell">{book.recurringRules.filter((rule) => rule.description === label).length}</span>
+                    <span>{labelGroupName(group.key)}</span>
+                    <span class="muted-action">Autofill</span>
+                  </div>
+                {/each}
               {/each}
             </div>
           </section>
@@ -2042,13 +2206,69 @@
             </div>
           </section>
         {/if}
+      {:else if activeView === "settings"}
+        <header class="menu-heading">
+          <div>
+            <h2>Instellingen</h2>
+            <p>Rustige appkeuzes: leermodus, echte modus, thema en lokale opslag.</p>
+          </div>
+        </header>
+        <section class="settings-block workbook-block" aria-label="App-instellingen">
+          <header>
+            <div>
+              <h3>Appgedrag</h3>
+              <p>Alles wat bepaalt in welke omgeving en met welke weergave je werkt.</p>
+            </div>
+          </header>
+          <div class="data-sheet">
+            <div class="data-row sheet-head">
+              <span>Onderdeel</span>
+              <span>Huidige waarde</span>
+              <span>Uitleg</span>
+              <span>Actie</span>
+            </div>
+            <div class="data-row">
+              <strong>Gegevensmodus</strong>
+              <span>{appMode === "demo" ? "Leermodus" : "Productie"}</span>
+              <span>{appMode === "demo" ? "Fictieve begroting 2026 voor oefenen en testen." : "Echte gegevens, apart bewaard van leermodus."}</span>
+              <div class="mode-switch" aria-label="Gegevensmodus">
+                <button class:active={appMode === "demo"} type="button" onclick={() => switchMode("demo")}>Leren</button>
+                <button class:active={appMode === "production"} type="button" onclick={() => switchMode("production")}>Echt</button>
+              </div>
+            </div>
+            <div class="data-row">
+              <strong>Thema</strong>
+              <span>{evening ? "Donker" : "Licht"}</span>
+              <span>Gebruik licht overdag en donker wanneer dat rustiger leest.</span>
+              <button class="inline-action" type="button" onclick={() => (evening = !evening)}>{evening ? "Licht" : "Donker"}</button>
+            </div>
+            <div class="data-row">
+              <strong>Jaar</strong>
+              <span>{selectedYear.year}</span>
+              <span>Het actieve jaarblad in deze modus.</span>
+              <span class="muted-action">Automatisch</span>
+            </div>
+            <div class="data-row">
+              <strong>Startsaldo</strong>
+              <span>{formatMoneyCents(selectedYear.startBalanceCents)}</span>
+              <span>Basis waarop januari verder rekent.</span>
+              <span class="muted-action">Later bewerkbaar</span>
+            </div>
+            <div class="data-row">
+              <strong>Opslag</strong>
+              <span>{saveStatus}</span>
+              <span>Lokaal bewaard in deze appomgeving.</span>
+              <span class="muted-action">{appMode === "demo" ? "Demo-opslag" : "Productie-opslag"}</span>
+            </div>
+          </div>
+        </section>
       {:else}
         <header class="menu-heading">
           <div>
-            <h2>Back-up</h2>
-            <p>Herstel, export en wijzigingen staan samen, zonder het jaarblad te verstoren.</p>
+            <h2>Veiligheid</h2>
+            <p>Back-up, herstel, controle en wijzigingen staan samen, zonder het jaarblad te verstoren.</p>
           </div>
-          <nav class="settings-tabs" aria-label="Back-up onderdelen">
+          <nav class="settings-tabs" aria-label="Veiligheid onderdelen">
             <button class:active={activeBackupTab === "backup"} type="button" aria-pressed={activeBackupTab === "backup"} onclick={() => (activeBackupTab = "backup")}>{backupTabLabels.backup}</button>
             <button class:active={activeBackupTab === "changes"} type="button" aria-pressed={activeBackupTab === "changes"} onclick={() => (activeBackupTab = "changes")}>{backupTabLabels.changes}</button>
           </nav>
