@@ -55,6 +55,7 @@ try {
   await expectModeSwitchSeparatesDemo(page);
   await expectCategorySettingsManagement(page);
   await expectRecurringRuleSettings(page);
+  await expectAutocompleteSuggestions(page);
   await expectRemainingMenusFunctional(page);
   await expectMonthLockBlocksEditing(page);
   await expectTooltips(page);
@@ -1462,6 +1463,45 @@ async function expectRecurringRuleSettings(page) {
   await page.getByRole("button", { name: "Jaarblad" }).click();
   await navigateToMonth(page, 7);
   await expectMonthCardVisibleText(page, 7, "Eenmalige rooktest");
+}
+
+async function expectAutocompleteSuggestions(page) {
+  await page.getByRole("button", { name: "Beheer" }).click();
+  await page.getByRole("button", { name: "Vaste regels" }).click();
+  await expectVisibleText(page, "Vaste regels");
+
+  const ruleIssue = await page.evaluate(() => {
+    const partyList = document.querySelector("#party-suggestions");
+    const incomeList = document.querySelector("#income-label-suggestions");
+    const expenseList = document.querySelector("#expense-label-suggestions");
+    const partyInput = document.querySelector('input[aria-label="Partij voor nieuwe regel"]');
+    const descriptionInput = document.querySelector('input[aria-label="Omschrijving voor nieuwe regel"]');
+
+    if (!(partyList instanceof HTMLDataListElement)) return "Partijenlijst ontbreekt.";
+    if (!(incomeList instanceof HTMLDataListElement)) return "Inkomstenlabellijst ontbreekt.";
+    if (!(expenseList instanceof HTMLDataListElement)) return "Uitgavenlabellijst ontbreekt.";
+    if (!(partyInput instanceof HTMLInputElement) || partyInput.getAttribute("list") !== "party-suggestions") return "Partijveld bij vaste regels gebruikt geen partijenlijst.";
+    if (!(descriptionInput instanceof HTMLInputElement) || descriptionInput.getAttribute("list") !== "expense-label-suggestions") return "Omschrijvingveld bij vaste regels gebruikt geen uitgavenlabels.";
+    if (!Array.from(partyList.options).some((option) => option.value === "Pensioendienst")) return "Pensioendienst ontbreekt als partijsuggestie.";
+    if (!Array.from(incomeList.options).some((option) => option.value === "Pensioen")) return "Pensioen ontbreekt als inkomstenlabel.";
+    if (!Array.from(expenseList.options).some((option) => option.value === "HH")) return "HH ontbreekt als uitgavenlabel.";
+    return "";
+  });
+  if (ruleIssue) throw new Error(`Autocompletecontrole faalde: ${ruleIssue}`);
+
+  await page.getByRole("button", { name: "Jaarblad" }).click();
+  await navigateToMonth(page, 7);
+  await openDraft(page, 7, "inkomsten", "sub-ink-pensioen", "Pensioen");
+  const gridIssue = await page.evaluate(() => {
+    const draft = document.querySelector('[data-testid="draft-7-inkomsten-sub-ink-pensioen"]');
+    const partyInput = draft?.querySelector('input[aria-label^="Partij"]');
+    const descriptionInput = draft?.querySelector('input[aria-label^="Omschrijving"]');
+    if (!(partyInput instanceof HTMLInputElement) || partyInput.getAttribute("list") !== "party-suggestions") return "Partijveld in de grid gebruikt geen partijenlijst.";
+    if (!(descriptionInput instanceof HTMLInputElement) || descriptionInput.getAttribute("list") !== "income-label-suggestions") return "Omschrijvingveld bij inkomsten gebruikt geen inkomstenlabels.";
+    return "";
+  });
+  if (gridIssue) throw new Error(`Autocompletecontrole faalde: ${gridIssue}`);
+  await page.keyboard.press("Escape");
 }
 
 async function expectTooltips(page) {

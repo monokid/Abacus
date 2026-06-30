@@ -862,6 +862,14 @@
     return group === "income" ? "Inkomsten" : "Uitgaven";
   }
 
+  function labelSuggestionsForSection(section: Section): string[] {
+    return section === "inkomsten" ? book.labels.income : book.labels.expense;
+  }
+
+  function labelListId(section: Section): string {
+    return section === "inkomsten" ? "income-label-suggestions" : "expense-label-suggestions";
+  }
+
   function topParties(limit = 8): Array<{ party: string; amountCents: number; count: number }> {
     const totalsByParty = new Map<string, { party: string; amountCents: number; count: number }>();
     for (const month of selectedYear.months) {
@@ -1636,6 +1644,22 @@
     </div>
   </header>
 
+  <datalist id="party-suggestions">
+    {#each book.labels.parties as party}
+      <option value={party}></option>
+    {/each}
+  </datalist>
+  <datalist id="income-label-suggestions">
+    {#each book.labels.income as label}
+      <option value={label}></option>
+    {/each}
+  </datalist>
+  <datalist id="expense-label-suggestions">
+    {#each book.labels.expense as label}
+      <option value={label}></option>
+    {/each}
+  </datalist>
+
   {#if activeView !== "year"}
     <section class="menu-page" aria-label={viewLabels[activeView]}>
       {#if activeView === "overview"}
@@ -1980,11 +2004,11 @@
                 </label>
                 <label>
                   <span>Partij</span>
-                  <input aria-label="Partij voor nieuwe regel" bind:value={newRuleDraft.party} placeholder="Bij wie?" title="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." data-tooltip="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." onkeydown={maybeAddMonthlyRuleFromKey} />
+                  <input aria-label="Partij voor nieuwe regel" bind:value={newRuleDraft.party} list="party-suggestions" placeholder="Bij wie?" title="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." data-tooltip="Optioneel. Bijvoorbeeld Pensioendienst, Telenet of Luminus." onkeydown={maybeAddMonthlyRuleFromKey} />
                 </label>
                 <label class="wide-rule-field">
                   <span>Omschrijving</span>
-                  <input aria-label="Omschrijving voor nieuwe regel" bind:value={newRuleDraft.description} placeholder="Wat komt terug?" title="Verplicht. Dit is de tekst die in de maandkaart verschijnt." data-tooltip="Verplicht. Dit is de tekst die in de maandkaart verschijnt." onkeydown={maybeAddMonthlyRuleFromKey} />
+                  <input aria-label="Omschrijving voor nieuwe regel" bind:value={newRuleDraft.description} list={labelListId(newRuleDraft.section)} placeholder="Wat komt terug?" title="Verplicht. Dit is de tekst die in de maandkaart verschijnt." data-tooltip="Verplicht. Dit is de tekst die in de maandkaart verschijnt." onkeydown={maybeAddMonthlyRuleFromKey} />
                 </label>
                 <label>
                   <span>Bedrag</span>
@@ -2139,6 +2163,7 @@
                         <span>Partij</span>
                         <input
                           aria-label={`Partij voor regel ${rule.description}`}
+                          list="party-suggestions"
                           value={rule.party}
                           onblur={(event) => applyRecurringRuleChange(rule.id, { party: inputValue(event) })}
                         />
@@ -2147,6 +2172,7 @@
                         <span>Omschrijving</span>
                         <input
                           aria-label={`Omschrijving voor regel ${rule.description}`}
+                          list={labelListId(rule.section)}
                           value={rule.description}
                           onblur={(event) => applyRecurringRuleChange(rule.id, { description: inputValue(event) })}
                         />
@@ -2627,6 +2653,7 @@
                     class="ledger-input party-input"
                     aria-label={`Partij voor ${subcategory.name} in ${monthName(month.month)}`}
                     bind:value={draft.party}
+                    list="party-suggestions"
                     placeholder={section === "inkomsten" ? "Van wie?" : "Bij wie?"}
                     onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
                   />
@@ -2638,6 +2665,7 @@
                       aria-invalid={Boolean(draft.descriptionError)}
                       aria-label={`Omschrijving voor ${subcategory.name} in ${monthName(month.month)}`}
                       bind:value={draft.description}
+                      list={labelListId(section)}
                       placeholder="Omschrijving"
                       oninput={() => clearDescriptionError(draft)}
                       onkeydown={(event) => maybeHandleDraftKey(event, month, section, subcategory.id)}
@@ -2705,6 +2733,7 @@
                         class="ledger-input party-input"
                         aria-label={`Partij bewerken voor ${entry.description}`}
                         bind:value={editDraft.party}
+                        list="party-suggestions"
                         onkeydown={(event) => maybeHandleEditKey(event, entry)}
                       />
                       <span class="description-cell">
@@ -2714,6 +2743,7 @@
                           aria-invalid={Boolean(editDraft.descriptionError)}
                           aria-label={`Omschrijving bewerken voor ${entry.description}`}
                           bind:value={editDraft.description}
+                          list={labelListId(entry.section)}
                           oninput={() => clearDescriptionError(editDraft)}
                           onkeydown={(event) => maybeHandleEditKey(event, entry)}
                         />
@@ -2798,6 +2828,7 @@
                     class="ledger-input party-input"
                     aria-label={`Partij bewerken voor ${entry.description}`}
                     bind:value={editDraft.party}
+                    list="party-suggestions"
                     onkeydown={(event) => maybeHandleEditKey(event, entry)}
                   />
                   <span class="description-cell">
@@ -2807,6 +2838,7 @@
                       aria-invalid={Boolean(editDraft.descriptionError)}
                       aria-label={`Omschrijving bewerken voor ${entry.description}`}
                       bind:value={editDraft.description}
+                      list={labelListId(entry.section)}
                       oninput={() => clearDescriptionError(editDraft)}
                       onkeydown={(event) => maybeHandleEditKey(event, entry)}
                     />
